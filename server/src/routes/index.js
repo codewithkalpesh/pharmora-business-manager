@@ -13,6 +13,7 @@ const bankRoutes = require('./bank.routes');
 const recurringRoutes = require('./recurring.routes');
 const notificationRoutes = require('./notification.routes');
 const analyticsRoutes = require('./analytics.routes');
+const borrowedRoutes = require('./borrowed.routes');
 
 router.use('/auth', authRoutes);
 router.use('/dashboard', dashboardRoutes);
@@ -25,5 +26,6 @@ router.use('/banks', bankRoutes);
 router.use('/recurring', recurringRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/analytics', analyticsRoutes);
+router.use('/borrowed', borrowedRoutes);
 
 module.exports = router;

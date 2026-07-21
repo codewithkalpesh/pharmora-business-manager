@@ -1,5 +1,6 @@
 // src/services/expense.service.js
 const expenseRepository = require('../repositories/expense.repository');
+const broadcastService = require('./broadcast.service');
 const ApiError = require('../utils/ApiError');
 const fs = require('fs');
 const path = require('path');
@@ -50,6 +51,17 @@ class ExpenseService {
     if (expense.paymentMode === 'CASH') {
       await this._syncExpenseToCashBook(expense);
     }
+
+    // Broadcast transaction
+    broadcastService.broadcastTransaction({
+      userId,
+      type: 'EXPENSE',
+      amount: expense.amount,
+      partyName: expense.category?.name || 'Expense',
+      description: expense.description,
+      paymentMode: expense.paymentMode,
+      date: expense.date,
+    });
 
     return expense;
   }

@@ -44,7 +44,17 @@ export function Header({ collapsed, onToggle, onMobileToggle }) {
     <header className={`header ${collapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Left: toggle + breadcrumb */}
       <div className="header-left">
-        <button className="header-toggle" onClick={onToggle} title="Toggle sidebar">
+        <button
+          className="header-toggle"
+          onClick={() => {
+            if (window.innerWidth < 768 && onMobileToggle) {
+              onMobileToggle();
+            } else if (onToggle) {
+              onToggle();
+            }
+          }}
+          title="Toggle navigation menu"
+        >
           <Menu size={18} />
         </button>
 

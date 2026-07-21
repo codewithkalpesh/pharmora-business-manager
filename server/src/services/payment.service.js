@@ -1,6 +1,7 @@
 // src/services/payment.service.js
 const paymentRepository = require('../repositories/payment.repository');
 const purchaseRepository = require('../repositories/purchase.repository');
+const broadcastService = require('./broadcast.service');
 const ApiError = require('../utils/ApiError');
 
 class PaymentService {
@@ -43,6 +44,17 @@ class PaymentService {
     if (payment.paymentMode === 'CASH') {
       await this._syncPaymentToCashBook(payment, distributor.name);
     }
+
+    // Broadcast transaction
+    broadcastService.broadcastTransaction({
+      userId,
+      type: 'DISTRIBUTOR_PAYMENT',
+      amount: payment.amount,
+      partyName: distributor.name,
+      description: payment.notes || `Distributor Payment: ${distributor.name}`,
+      paymentMode: payment.paymentMode,
+      date: payment.paymentDate,
+    });
 
     return payment;
   }

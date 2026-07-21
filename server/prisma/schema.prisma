@@ -79,6 +79,9 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  groupWebhookUrl      String?
+  autoBroadcastEnabled Boolean  @default(true)
+
   // Relations
   expenses              Expense[]
   cashBooks             CashBook[]
@@ -93,6 +96,8 @@ model User {
   distributors          Distributor[]
   customers             Customer[]
   bankAccounts          BankAccount[]
+  borrowedMoney         BorrowedMoney[]
+  borrowedRepayments    BorrowedRepayment[]
 
   @@map("users")
 }
@@ -403,4 +408,45 @@ model AuditLog {
   user User @relation(fields: [userId], references: [id])
 
   @@map("audit_logs")
+}
+
+// ─── Borrowed Money & Repayments ──────────────────────────────────────────────
+
+model BorrowedMoney {
+  id             String        @id @default(cuid())
+  personName     String
+  phone          String?
+  borrowedAmount Decimal       @db.Decimal(12, 2)
+  targetAmount   Decimal       @db.Decimal(12, 2)
+  paidAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  borrowDate     DateTime      @db.Date
+  targetDate     DateTime?     @db.Date
+  status         PaymentStatus @default(PENDING)
+  notes          String?
+  paymentMode    PaymentMode   @default(CASH)
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  createdBy  User                @relation(fields: [createdById], references: [id])
+  repayments BorrowedRepayment[]
+
+  @@map("borrowed_money")
+}
+
+model BorrowedRepayment {
+  id              String      @id @default(cuid())
+  borrowedMoneyId String
+  repaymentDate   DateTime    @db.Date
+  amount          Decimal     @db.Decimal(12, 2)
+  paymentMode     PaymentMode @default(CASH)
+  referenceNo     String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime    @default(now())
+
+  borrowedMoney BorrowedMoney @relation(fields: [borrowedMoneyId], references: [id], onDelete: Cascade)
+  createdBy     User          @relation(fields: [createdById], references: [id])
+
+  @@map("borrowed_repayments")
 }

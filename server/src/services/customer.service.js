@@ -1,4 +1,5 @@
 const customerRepository = require('../repositories/customer.repository');
+const broadcastService = require('./broadcast.service');
 const ApiError = require('../utils/ApiError');
 
 class CustomerService {
@@ -206,6 +207,17 @@ class CustomerService {
 
     // Auto-sync customer collection into CashBook
     await this._syncCollectionToCashBook(collection, customer.name);
+
+    // Broadcast transaction
+    broadcastService.broadcastTransaction({
+      userId,
+      type: 'CUSTOMER_COLLECTION',
+      amount: collection.amount,
+      partyName: customer.name,
+      description: collection.notes || `Customer Collection: ${customer.name}`,
+      paymentMode: collection.paymentMode,
+      date: collection.collectionDate,
+    });
 
     return collection;
   }

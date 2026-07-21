@@ -8,4 +8,6 @@ export const authApi = {
   getProfile: () => api.get('/auth/me'),
   refresh: () => api.post('/auth/refresh'),
   changePassword: (data) => api.patch('/auth/change-password', data),
+  updateGroupWebhook: (data) => api.patch('/auth/group-webhook', data),
+  testGroupWebhook: (data) => api.post('/auth/group-webhook/test', data),
 };

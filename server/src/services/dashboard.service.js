@@ -43,6 +43,9 @@ const getKPIs = async (userId) => {
     recentDistributorPayments,
     recentCashBooks,
     recentCustomerCollections,
+    recentBorrowedRepayments,
+    recentBorrowedAdditions,
+    borrowedPending,
   ] = await Promise.all([
     // Today's cash book entry for this user
     prisma.cashBook.findFirst({
@@ -128,6 +131,24 @@ const getKPIs = async (userId) => {
       take: 10,
       include: { customer: { select: { name: true } } },
     }),
+    // Recent Borrowed Money Repayments
+    prisma.borrowedRepayment.findMany({
+      where: { createdById: userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      include: { borrowedMoney: { select: { personName: true } } },
+    }),
+    // Recent Borrowed Money Additions
+    prisma.borrowedMoney.findMany({
+      where: { createdById: userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    // Borrowed Money Outstanding
+    prisma.borrowedMoney.aggregate({
+      where: { status: { in: ['PENDING', 'PARTIAL'] }, createdById: userId },
+      _sum: { targetAmount: true, paidAmount: true },
+    }),
   ]);
 
   const todaySales =
@@ -148,6 +169,10 @@ const getKPIs = async (userId) => {
     Number(customerOutstanding._sum.amount || 0) -
     Number(customerOutstanding._sum.paidAmount || 0);
 
+  const borrowedPendingAmount =
+    Number(borrowedPending._sum.targetAmount || 0) -
+    Number(borrowedPending._sum.paidAmount || 0);
+
   const monthRevenue =
     Number(monthlyRevenue._sum.cashSales || 0) +
     Number(monthlyRevenue._sum.upiReceipts || 0) +
@@ -164,7 +189,7 @@ const getKPIs = async (userId) => {
 
   const monthProfit = monthRevenue - monthExpenses;
 
-  // Format all 4 transaction streams for recent transactions
+  // Format all transaction streams for recent transactions
   const formattedExpenses = recentExpenses.map((e) => {
     const isRec = e.isRecurring || e.description?.includes('[RECURRING]') || e.description?.includes('[AUTO-DRAFT]');
     return {
@@ -220,11 +245,35 @@ const getKPIs = async (userId) => {
     type: 'COLLECTION',
   }));
 
+  const formattedRepayments = recentBorrowedRepayments.map((r) => ({
+    id: r.id,
+    date: r.repaymentDate,
+    createdAt: r.createdAt,
+    description: `Repayment to ${r.borrowedMoney?.personName || 'Lender'}`,
+    amount: Number(r.amount),
+    isIncome: false,
+    category: { name: 'Borrowed Repayment', color: '#f59e0b' },
+    type: 'BORROWED_REPAYMENT',
+  }));
+
+  const formattedAdditions = recentBorrowedAdditions.map((b) => ({
+    id: b.id,
+    date: b.borrowDate,
+    createdAt: b.createdAt,
+    description: `Borrowed from ${b.personName}`,
+    amount: Number(b.borrowedAmount),
+    isIncome: true,
+    category: { name: 'Borrowed Money Received', color: '#06b6d4' },
+    type: 'BORROWED_MONEY',
+  }));
+
   const recentTransactions = [
     ...formattedExpenses,
     ...formattedDistPayments,
     ...formattedCashBooks,
     ...formattedCollections,
+    ...formattedRepayments,
+    ...formattedAdditions,
   ]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 10);
@@ -237,6 +286,7 @@ const getKPIs = async (userId) => {
       bankBalance: totalBankBalance,
       distributorPending: distributorPendingAmount,
       customerCredit: customerOutstandingAmount,
+      borrowedPending: borrowedPendingAmount,
       monthlyProfit: monthProfit,
       monthlyRevenue: monthRevenue,
       netCashFlow: monthRevenue - monthExpenses,

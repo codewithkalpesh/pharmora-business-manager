@@ -76,4 +76,25 @@ const getProfile = async (userId) => {
   return user;
 };
 
-module.exports = { register, login, logout, refresh, changePassword, getProfile };
+const updateGroupWebhook = async (userId, { groupWebhookUrl, autoBroadcastEnabled }) => {
+  const prisma = require('../config/prisma');
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      groupWebhookUrl: groupWebhookUrl !== undefined ? groupWebhookUrl?.trim() || null : undefined,
+      autoBroadcastEnabled: autoBroadcastEnabled !== undefined ? Boolean(autoBroadcastEnabled) : undefined,
+    },
+    select: { id: true, name: true, email: true, role: true, groupWebhookUrl: true, autoBroadcastEnabled: true },
+  });
+  return updated;
+};
+
+const testGroupWebhook = async (userId, customUrl) => {
+  const user = await authRepo.findUserById(userId);
+  const broadcastService = require('./broadcast.service');
+  const targetUrl = customUrl?.trim() || user?.groupWebhookUrl;
+  return broadcastService.sendTestBroadcast(targetUrl, user?.name);
+};
+
+module.exports = { register, login, logout, refresh, changePassword, getProfile, updateGroupWebhook, testGroupWebhook };
+

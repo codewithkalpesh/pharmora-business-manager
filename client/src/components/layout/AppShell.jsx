@@ -10,25 +10,21 @@ export function AppShell() {
 
   const toggle = () => setCollapsed((v) => !v);
   const toggleMobile = () => setMobileOpen((v) => !v);
+  const closeMobile = () => setMobileOpen(false);
 
   return (
     <div className="app-shell">
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          onClick={() => setMobileOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            zIndex: 'calc(var(--z-sidebar) - 1)', display: 'none',
-          }}
-          className="mobile-overlay"
-        />
-      )}
+      {/* Mobile backdrop overlay */}
+      <div
+        className={`mobile-overlay ${mobileOpen ? 'open' : ''}`}
+        onClick={closeMobile}
+      />
 
       <Sidebar
         collapsed={collapsed}
         onToggle={toggle}
         mobileOpen={mobileOpen}
+        onCloseMobile={closeMobile}
       />
 
       <div className={`main-content ${collapsed ? 'sidebar-collapsed' : ''}`}>

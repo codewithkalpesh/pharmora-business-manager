@@ -11,5 +11,7 @@ router.post('/logout', authenticate, authController.logout);
 router.post('/refresh', authController.refreshToken);
 router.get('/me', authenticate, authController.getProfile);
 router.patch('/change-password', authenticate, validate(changePasswordSchema), authController.changePassword);
+router.patch('/group-webhook', authenticate, authController.updateGroupWebhook);
+router.post('/group-webhook/test', authenticate, authController.testGroupWebhook);
 
 module.exports = router;

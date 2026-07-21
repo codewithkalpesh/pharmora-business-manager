@@ -78,4 +78,22 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, logout, refreshToken, getProfile, changePassword };
+const updateGroupWebhook = async (req, res, next) => {
+  try {
+    const updated = await authService.updateGroupWebhook(req.user.id, req.body);
+    return res.status(200).json(new ApiResponse(200, updated, 'Group link settings updated.'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+const testGroupWebhook = async (req, res, next) => {
+  try {
+    await authService.testGroupWebhook(req.user.id, req.body?.groupWebhookUrl);
+    return res.status(200).json(new ApiResponse(200, {}, 'Test broadcast sent successfully!'));
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, logout, refreshToken, getProfile, changePassword, updateGroupWebhook, testGroupWebhook };

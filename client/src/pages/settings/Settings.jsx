@@ -4,16 +4,31 @@ import { useAuth } from '../../store/AuthContext';
 import { authApi } from '../../api/auth.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import {
-  User, Shield, Building, Check, AlertCircle, RefreshCw, Key
+  User, Shield, Building, Check, AlertCircle, RefreshCw, Key, Share2, Send, Link, Radio
 } from 'lucide-react';
 
 export function Settings() {
   const { user, fetchProfile } = useAuth();
   
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile', 'security', 'business'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile', 'security', 'business', 'groupLink'
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Group Link Broadcaster fields
+  const [groupForm, setGroupForm] = useState({
+    groupWebhookUrl: user?.groupWebhookUrl || '',
+    autoBroadcastEnabled: user?.autoBroadcastEnabled !== false,
+  });
+
+  useEffect(() => {
+    if (user) {
+      setGroupForm({
+        groupWebhookUrl: user.groupWebhookUrl || '',
+        autoBroadcastEnabled: user.autoBroadcastEnabled !== false,
+      });
+    }
+  }, [user]);
 
   // Password fields
   const [passwordForm, setPasswordForm] = useState({
@@ -50,6 +65,40 @@ export function Settings() {
       });
     }
   }, []);
+
+  const handleGroupSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(null);
+    setLoading(true);
+    try {
+      await authApi.updateGroupWebhook(groupForm);
+      if (fetchProfile) fetchProfile();
+      setSuccess("Group link settings saved successfully! Every transaction will now be broadcasted.");
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to save group link settings.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestBroadcast = async () => {
+    setError(null);
+    setSuccess(null);
+    if (!groupForm.groupWebhookUrl?.trim()) {
+      setError("Please enter a Group Link / Webhook URL first.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await authApi.testGroupWebhook({ groupWebhookUrl: groupForm.groupWebhookUrl });
+      setSuccess("Test broadcast message sent successfully! Check your group link.");
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to send test broadcast. Check your URL.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
@@ -94,14 +143,14 @@ export function Settings() {
     <div className="fade-in space-y-6">
       <PageHeader
         title="App Settings"
-        subtitle="Manage user authentication profile, change account password, and edit shop details"
+        subtitle="Manage user profile, group transaction broadcasting, security, and shop details."
       />
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800">
+      <div className="flex border-b border-slate-800 overflow-x-auto">
         <button
           onClick={() => { setActiveTab('profile'); setError(null); setSuccess(null); }}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
             activeTab === 'profile'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-450 hover:text-slate-200'
@@ -111,8 +160,19 @@ export function Settings() {
           My Profile
         </button>
         <button
+          onClick={() => { setActiveTab('groupLink'); setError(null); setSuccess(null); }}
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
+            activeTab === 'groupLink'
+              ? 'border-emerald-500 text-emerald-400'
+              : 'border-transparent text-slate-450 hover:text-slate-200'
+          }`}
+        >
+          <Share2 size={15} />
+          Group Link Broadcaster
+        </button>
+        <button
           onClick={() => { setActiveTab('security'); setError(null); setSuccess(null); }}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
             activeTab === 'security'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-450 hover:text-slate-200'
@@ -123,7 +183,7 @@ export function Settings() {
         </button>
         <button
           onClick={() => { setActiveTab('business'); setError(null); setSuccess(null); }}
-          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 ${
+          className={`flex items-center gap-2 px-5 py-3 text-xs font-bold transition-all border-b-2 whitespace-nowrap ${
             activeTab === 'business'
               ? 'border-emerald-500 text-emerald-400'
               : 'border-transparent text-slate-450 hover:text-slate-200'
@@ -196,6 +256,72 @@ export function Settings() {
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'groupLink' && (
+          <form onSubmit={handleGroupSubmit} className="space-y-5">
+            <div>
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Share2 size={16} className="text-emerald-400" />
+                Group Link Broadcaster Settings
+              </h3>
+              <p className="text-[11px] text-slate-450 mt-1">
+                Provide a group webhook or broadcast URL (Telegram Bot, WhatsApp Webhook, Discord Webhook, or custom HTTP endpoint). Every single transaction in the app will be shared automatically to this group.
+              </p>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Group Link / Webhook URL</label>
+              <div className="relative">
+                <input
+                  type="url"
+                  required
+                  value={groupForm.groupWebhookUrl}
+                  onChange={(e) => setGroupForm({ ...groupForm, groupWebhookUrl: e.target.value })}
+                  className="input pl-9 font-mono text-xs text-emerald-400"
+                  placeholder="https://api.telegram.org/bot<token>/sendMessage?chat_id=<chat_id> or Webhook URL"
+                />
+                <Link size={15} className="absolute left-3 top-3 text-slate-500" />
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                Supports Telegram Bot API, Discord Webhooks, or standard JSON HTTP POST Webhooks.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 p-3.5 rounded-xl bg-slate-800/60 border border-slate-750">
+              <input
+                type="checkbox"
+                id="autoBroadcast"
+                checked={groupForm.autoBroadcastEnabled}
+                onChange={(e) => setGroupForm({ ...groupForm, autoBroadcastEnabled: e.target.checked })}
+                className="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 bg-slate-900 border-slate-700 cursor-pointer"
+              />
+              <label htmlFor="autoBroadcast" className="text-xs text-slate-200 font-medium cursor-pointer">
+                Automatically share every little transaction across the app in real-time
+              </label>
+            </div>
+
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn btn-primary font-semibold"
+              >
+                {loading && <RefreshCw className="animate-spin h-4 w-4 mr-2" />}
+                Save Group Link
+              </button>
+
+              <button
+                type="button"
+                onClick={handleTestBroadcast}
+                disabled={loading || !groupForm.groupWebhookUrl}
+                className="btn btn-ghost border border-slate-700 text-slate-300 hover:text-white font-semibold flex items-center gap-1.5"
+              >
+                <Send size={14} className="text-emerald-400" />
+                Send Test Message
+              </button>
+            </div>
+          </form>
         )}
 
         {activeTab === 'security' && (
