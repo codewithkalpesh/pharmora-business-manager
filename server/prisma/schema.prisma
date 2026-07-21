@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  OWNER
+  MANAGER
+  ACCOUNTANT
+  STAFF
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  CARD
+  CHEQUE
+  BANK_TRANSFER
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum RecurringFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  HALF_YEARLY
+  YEARLY
+  CUSTOM
+}
+
+enum RecurringAction {
+  REMINDER_ONLY
+  AUTO_DRAFT
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  DISMISSED
+}
+
+enum BankTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER
+}
+
+// ─── Users & Auth ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(STAFF)
+  refreshToken String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  expenses              Expense[]
+  cashBooks             CashBook[]
+  purchaseBills         PurchaseBill[]
+  distributorPayments   DistributorPayment[]
+  customerCredits       CustomerCredit[]
+  creditCollections     CreditCollection[]
+  bankTransactions      BankTransaction[]
+  recurringTransactions RecurringTransaction[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  distributors          Distributor[]
+  customers             Customer[]
+  bankAccounts          BankAccount[]
+
+  @@map("users")
+}
+
+// ─── Cash Book ────────────────────────────────────────────────────────────────
+
+model CashBook {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  openingCash     Decimal  @default(0) @db.Decimal(12, 2)
+  cashSales       Decimal  @default(0) @db.Decimal(12, 2)
+  upiReceipts     Decimal  @default(0) @db.Decimal(12, 2)
+  cardReceipts    Decimal  @default(0) @db.Decimal(12, 2)
+  otherIncome     Decimal  @default(0) @db.Decimal(12, 2)
+  totalExpenses   Decimal  @default(0) @db.Decimal(12, 2)
+  bankDeposit     Decimal  @default(0) @db.Decimal(12, 2)
+  closingCash     Decimal  @default(0) @db.Decimal(12, 2)
+  cashDifference  Decimal  @default(0) @db.Decimal(12, 2)
+  notes           String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@unique([date, createdById])
+  @@map("cash_book")
+}
+
+// ─── Expense Categories ───────────────────────────────────────────────────────
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  icon      String?
+  color     String?
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  expenses Expense[]
+
+  @@map("expense_categories")
+}
+
+// ─── Expenses ─────────────────────────────────────────────────────────────────
+
+model Expense {
+  id          String      @id @default(cuid())
+  date        DateTime    @db.Date
+  categoryId  String
+  description String
+  amount      Decimal     @db.Decimal(12, 2)
+  paymentMode PaymentMode @default(CASH)
+  receiptUrl  String?
+  isRecurring Boolean     @default(false)
+  notes       String?
+  createdById String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  category  ExpenseCategory @relation(fields: [categoryId], references: [id])
+  createdBy User            @relation(fields: [createdById], references: [id])
+
+  @@map("expenses")
+}
+
+// ─── Distributors ─────────────────────────────────────────────────────────────
+
+model Distributor {
+  id             String   @id @default(cuid())
+  name           String
+  contactPerson  String?
+  phone          String?
+  email          String?
+  address        String?
+  gstNumber      String?
+  creditDays     Int      @default(30)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  createdById    String
+  createdBy      User     @relation(fields: [createdById], references: [id])
+
+  purchaseBills       PurchaseBill[]
+  payments            DistributorPayment[]
+
+  @@map("distributors")
+}
+
+// ─── Purchase Bills ───────────────────────────────────────────────────────────
+
+model PurchaseBill {
+  id            String        @id @default(cuid())
+  invoiceNo     String
+  distributorId String
+  billDate      DateTime      @db.Date
+  dueDate       DateTime      @db.Date
+  subtotal      Decimal       @db.Decimal(12, 2)
+  gstAmount     Decimal       @default(0) @db.Decimal(12, 2)
+  discountAmount Decimal      @default(0) @db.Decimal(12, 2)
+  grandTotal    Decimal       @db.Decimal(12, 2)
+  paidAmount    Decimal       @default(0) @db.Decimal(12, 2)
+  status        PaymentStatus @default(PENDING)
+  notes         String?
+  createdById   String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  supplier    Distributor          @relation(fields: [distributorId], references: [id])
+  createdBy   User                 @relation(fields: [createdById], references: [id])
+  payments    DistributorPayment[] @relation("BillPayments")
+
+  @@unique([invoiceNo, distributorId])
+  @@map("purchase_bills")
+}
+
+// ─── Distributor Payments ─────────────────────────────────────────────────────
+
+model DistributorPayment {
+  id            String      @id @default(cuid())
+  distributorId String
+  billId        String?
+  paymentDate   DateTime    @db.Date
+  amount        Decimal     @db.Decimal(12, 2)
+  paymentMode   PaymentMode @default(CASH)
+  referenceNo   String?
+  notes         String?
+  createdById   String
+
+  createdAt DateTime @default(now())
+
+  distributor Distributor   @relation(fields: [distributorId], references: [id])
+  bill        PurchaseBill? @relation("BillPayments", fields: [billId], references: [id])
+  createdBy   User          @relation(fields: [createdById], references: [id])
+
+  @@map("distributor_payments")
+}
+
+// ─── Customers ────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  credits     CustomerCredit[]
+  collections CreditCollection[]
+
+  @@map("customers")
+}
+
+// ─── Customer Credit ──────────────────────────────────────────────────────────
+
+model CustomerCredit {
+  id          String        @id @default(cuid())
+  customerId  String
+  date        DateTime      @db.Date
+  description String
+  amount      Decimal       @db.Decimal(12, 2)
+  paidAmount  Decimal       @default(0) @db.Decimal(12, 2)
+  status      PaymentStatus @default(PENDING)
+  dueDate     DateTime?     @db.Date
+  notes       String?
+  createdById String
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  customer    Customer           @relation(fields: [customerId], references: [id])
+  createdBy   User               @relation(fields: [createdById], references: [id])
+  collections CreditCollection[]
+
+  @@map("customer_credits")
+}
+
+// ─── Credit Collections ───────────────────────────────────────────────────────
+
+model CreditCollection {
+  id              String      @id @default(cuid())
+  customerId      String
+  customerCreditId String?
+  collectionDate  DateTime    @db.Date
+  amount          Decimal     @db.Decimal(12, 2)
+  paymentMode     PaymentMode @default(CASH)
+  referenceNo     String?
+  notes           String?
+  createdById     String
+  createdAt       DateTime    @default(now())
+
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  customerCredit CustomerCredit? @relation(fields: [customerCreditId], references: [id])
+  createdBy      User            @relation(fields: [createdById], references: [id])
+
+  @@map("credit_collections")
+}
+
+// ─── Bank Accounts ────────────────────────────────────────────────────────────
+
+model BankAccount {
+  id            String   @id @default(cuid())
+  bankName      String
+  accountName   String
+  accountNumber String?
+  ifscCode      String?
+  openingBalance Decimal @default(0) @db.Decimal(12, 2)
+  currentBalance Decimal @default(0) @db.Decimal(12, 2)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdById   String?
+  createdBy     User?             @relation(fields: [createdById], references: [id])
+
+  transactions     BankTransaction[] @relation("AccountTransactions")
+  transfersFrom    BankTransaction[] @relation("TransferFrom")
+  transfersTo      BankTransaction[] @relation("TransferTo")
+
+  @@map("bank_accounts")
+}
+
+// ─── Bank Transactions ────────────────────────────────────────────────────────
+
+model BankTransaction {
+  id              String              @id @default(cuid())
+  accountId       String
+  type            BankTransactionType
+  date            DateTime            @db.Date
+  amount          Decimal             @db.Decimal(12, 2)
+  description     String
+  referenceNo     String?
+  transferToId    String?
+  transferFromId  String?
+  runningBalance  Decimal             @db.Decimal(12, 2)
+  createdById     String
+  createdAt       DateTime            @default(now())
+
+  account      BankAccount  @relation("AccountTransactions", fields: [accountId], references: [id])
+  transferTo   BankAccount? @relation("TransferTo", fields: [transferToId], references: [id])
+  transferFrom BankAccount? @relation("TransferFrom", fields: [transferFromId], references: [id])
+  createdBy    User         @relation(fields: [createdById], references: [id])
+
+  @@map("bank_transactions")
+}
+
+// ─── Recurring Transactions ───────────────────────────────────────────────────
+
+model RecurringTransaction {
+  id            String             @id @default(cuid())
+  title         String
+  description   String?
+  amount        Decimal            @db.Decimal(12, 2)
+  type          TransactionType
+  frequency     RecurringFrequency
+  action        RecurringAction    @default(REMINDER_ONLY)
+  startDate     DateTime           @db.Date
+  endDate       DateTime?          @db.Date
+  nextDueDate   DateTime           @db.Date
+  customDays    Int?
+  isActive      Boolean            @default(true)
+  createdById   String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@map("recurring_transactions")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String             // 'due_reminder' | 'recurring' | 'credit' | 'system'
+  status    NotificationStatus @default(UNREAD)
+  link      String?
+  createdAt DateTime           @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
+}
+
+// ─── Audit Logs ───────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  action     String   // 'CREATE' | 'UPDATE' | 'DELETE'
+  resource   String   // table name
+  resourceId String
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
