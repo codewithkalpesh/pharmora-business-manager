@@ -1,5 +1,6 @@
 // src/services/cashbook.service.js
 const cashBookRepository = require('../repositories/cashbook.repository');
+const broadcastService = require('./broadcast.service');
 const ApiError = require('../utils/ApiError');
 
 class CashBookService {
@@ -31,6 +32,26 @@ class CashBookService {
     if (Number(entry.upiReceipts) > 0) {
       await this._syncUpiToBank(entry);
     }
+
+    // Broadcast cashbook entry
+    broadcastService.broadcastTransaction({
+      userId,
+      type: 'CASHBOOK',
+      amount: entry.closingCash,
+      description: entry.notes,
+      date: entry.date,
+      extraDetails: {
+        openingCash: entry.openingCash,
+        cashSales: entry.cashSales,
+        upiReceipts: entry.upiReceipts,
+        cardReceipts: entry.cardReceipts,
+        otherIncome: entry.otherIncome,
+        totalExpenses: entry.totalExpenses,
+        bankDeposit: entry.bankDeposit,
+        closingCash: entry.closingCash,
+        cashDifference: entry.cashDifference,
+      }
+    }).catch(err => console.error('[CashBookService] Broadcast failed:', err.message));
 
     return entry;
   }
@@ -108,6 +129,26 @@ class CashBookService {
 
     // Re-sync UPI amount (handles amount changes, removes if zero)
     await this._syncUpiToBank(updated);
+
+    // Broadcast updated cashbook entry
+    broadcastService.broadcastTransaction({
+      userId,
+      type: 'CASHBOOK',
+      amount: updated.closingCash,
+      description: `[UPDATED] ${updated.notes || ''}`,
+      date: updated.date,
+      extraDetails: {
+        openingCash: updated.openingCash,
+        cashSales: updated.cashSales,
+        upiReceipts: updated.upiReceipts,
+        cardReceipts: updated.cardReceipts,
+        otherIncome: updated.otherIncome,
+        totalExpenses: updated.totalExpenses,
+        bankDeposit: updated.bankDeposit,
+        closingCash: updated.closingCash,
+        cashDifference: updated.cashDifference,
+      }
+    }).catch(err => console.error('[CashBookService] Broadcast failed:', err.message));
 
     return updated;
   }

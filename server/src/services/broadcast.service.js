@@ -62,26 +62,53 @@ class BroadcastService {
 
       const title = typeLabels[type] || `🔔 Transaction: ${type}`;
 
-      let message = `*${title}*\n`;
-      message += `------------------------------\n`;
-      message += `💰 *Amount*: ₹${formattedAmount}\n`;
-      if (partyName) message += `👤 *Party / Lender / Customer*: ${partyName}\n`;
-      message += `📅 *Date*: ${formattedDate}\n`;
-      message += `💳 *Mode*: ${paymentMode}\n`;
-      if (description) message += `📝 *Notes*: ${description}\n`;
+      let message = '';
+      if (type === 'CASHBOOK') {
+        const ext = extraDetails || {};
+        const getVal = (val) => Number(val || 0).toLocaleString('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+        
+        message = `*${title}*\n`;
+        message += `------------------------------\n`;
+        message += `📅 *Date*: ${formattedDate}\n`;
+        message += `📥 *Opening Cash*: ₹${getVal(ext.openingCash)}\n`;
+        message += `📈 *Cash Sales*: ₹${getVal(ext.cashSales)}\n`;
+        message += `📱 *UPI Receipts*: ₹${getVal(ext.upiReceipts)}\n`;
+        message += `💳 *Card Receipts*: ₹${getVal(ext.cardReceipts)}\n`;
+        message += `➕ *Other Income*: ₹${getVal(ext.otherIncome)}\n`;
+        message += `💸 *Total Expenses*: ₹${getVal(ext.totalExpenses)}\n`;
+        message += `🏦 *Bank Deposit*: ₹${getVal(ext.bankDeposit)}\n`;
+        message += `🏁 *Closing Cash*: ₹${getVal(ext.closingCash)}\n`;
+        
+        const diff = Number(ext.cashDifference || 0);
+        if (diff !== 0) {
+          message += `⚖️ *Cash Difference*: ₹${getVal(diff)}\n`;
+        }
+        
+        if (description) message += `📝 *Notes*: ${description}\n`;
+        message += `✨ *Logged By*: ${user.name}\n`;
+        message += `------------------------------`;
+      } else {
+        message = `*${title}*\n`;
+        message += `------------------------------\n`;
+        message += `💰 *Amount*: ₹${formattedAmount}\n`;
+        if (partyName) message += `👤 *Party / Lender / Customer*: ${partyName}\n`;
+        message += `📅 *Date*: ${formattedDate}\n`;
+        message += `💳 *Mode*: ${paymentMode}\n`;
+        if (description) message += `📝 *Notes*: ${description}\n`;
 
-      if (extraDetails.targetDate) {
-        message += `⏰ *Reminder / Target Date*: ${new Date(extraDetails.targetDate).toLocaleDateString('en-IN')}\n`;
-      }
-      if (extraDetails.targetAmount) {
-        message += `🎯 *Target Payback Amount*: ₹${Number(extraDetails.targetAmount).toLocaleString('en-IN')}\n`;
-      }
-      if (extraDetails.remainingBalance !== undefined) {
-        message += `⚖️ *Remaining Balance*: ₹${Number(extraDetails.remainingBalance).toLocaleString('en-IN')}\n`;
-      }
+        if (extraDetails.targetDate) {
+          message += `⏰ *Reminder / Target Date*: ${new Date(extraDetails.targetDate).toLocaleDateString('en-IN')}\n`;
+        }
+        if (extraDetails.targetAmount) {
+          message += `🎯 *Target Payback Amount*: ₹${Number(extraDetails.targetAmount).toLocaleString('en-IN')}\n`;
+        }
+        if (extraDetails.remainingBalance !== undefined) {
+          message += `⚖️ *Remaining Balance*: ₹${Number(extraDetails.remainingBalance).toLocaleString('en-IN')}\n`;
+        }
 
-      message += `✨ *Logged By*: ${user.name}\n`;
-      message += `------------------------------`;
+        message += `✨ *Logged By*: ${user.name}\n`;
+        message += `------------------------------`;
+      }
 
       await this._dispatchWebhook(user.groupWebhookUrl.trim(), message, {
         type,
