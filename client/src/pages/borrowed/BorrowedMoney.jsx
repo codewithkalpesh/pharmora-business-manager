@@ -102,11 +102,12 @@ export function BorrowedMoney() {
     }
   };
 
-  const handleAddRepayment = async (repayData) => {
-    if (!selectedForRepay) return;
+  const handleAddRepayment = async (repayData, itemId) => {
+    const targetId = itemId || selectedForRepay?.id;
+    if (!targetId) return;
     setSubmitting(true);
     try {
-      await borrowedApi.addRepayment(selectedForRepay.id, repayData);
+      await borrowedApi.addRepayment(targetId, repayData);
       setIsRepayOpen(false);
       setSelectedForRepay(null);
       fetchBorrowedData();
@@ -177,16 +178,28 @@ export function BorrowedMoney() {
         title="Borrowed Money & Payment Reminders"
         subtitle="Track money borrowed from people, schedule payback target dates, record repayments, and sync to cashbook."
       >
-        <button
-          onClick={() => {
-            setSelectedForEdit(null);
-            setIsFormOpen(true);
-          }}
-          className="btn btn-primary font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/20"
-        >
-          <Plus size={18} />
-          Add Borrowed Money
-        </button>
+        <div className="flex flex-wrap items-center gap-3 mt-4">
+          <button
+            onClick={() => {
+              setSelectedForRepay(null);
+              setIsRepayOpen(true);
+            }}
+            className="btn btn-secondary font-semibold flex items-center gap-2 shadow-lg"
+          >
+            <Send size={16} />
+            Record Repayment
+          </button>
+          <button
+            onClick={() => {
+              setSelectedForEdit(null);
+              setIsFormOpen(true);
+            }}
+            className="btn btn-primary font-semibold flex items-center gap-2 shadow-lg shadow-emerald-500/20"
+          >
+            <Plus size={18} />
+            Add Borrowed Money
+          </button>
+        </div>
       </PageHeader>
 
       {/* KPI Cards */}
@@ -434,6 +447,7 @@ export function BorrowedMoney() {
         }}
         onSubmit={handleAddRepayment}
         borrowedItem={selectedForRepay}
+        activeItems={items.filter(item => item.status !== 'PAID')}
         loading={submitting}
       />
 

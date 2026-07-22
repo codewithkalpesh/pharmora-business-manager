@@ -7,7 +7,7 @@ import {
 } from '../../components/common/FormField';
 import { formatCurrency } from '../../lib/utils';
 
-export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, loading }) {
+export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, activeItems = [], loading }) {
   const [formData, setFormData] = useState({
     amount: '',
     repaymentDate: new Date().toISOString().split('T')[0],
@@ -16,41 +16,147 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, loadin
     notes: '',
   });
 
+  const [selectedId, setSelectedId] = useState('');
+
+  const currentItem = borrowedItem || activeItems.find((i) => i.id === selectedId) || null;
+
   useEffect(() => {
-    if (borrowedItem) {
-      const remaining = Math.max(0, Number(borrowedItem.targetAmount) - Number(borrowedItem.paidAmount));
-      setFormData({
-        amount: remaining > 0 ? remaining : '',
-        repaymentDate: new Date().toISOString().split('T')[0],
-        paymentMode: 'CASH',
-        referenceNo: '',
-        notes: '',
-      });
+    if (isOpen) {
+      if (borrowedItem) {
+        const remaining = Math.max(0, Number(borrowedItem.targetAmount) - Number(borrowedItem.paidAmount));
+        setFormData({
+          amount: remaining > 0 ? remaining : '',
+          repaymentDate: new Date().toISOString().split('T')[0],
+          paymentMode: 'CASH',
+          referenceNo: '',
+          notes: '',
+        });
+      } else if (activeItems && activeItems.length > 0) {
+        const firstItem = activeItems[0];
+        setSelectedId(firstItem.id);
+        const remaining = Math.max(0, Number(firstItem.targetAmount) - Number(firstItem.paidAmount));
+        setFormData({
+          amount: remaining > 0 ? remaining : '',
+          repaymentDate: new Date().toISOString().split('T')[0],
+          paymentMode: 'CASH',
+          referenceNo: '',
+          notes: '',
+        });
+      } else {
+        setSelectedId('');
+        setFormData({
+          amount: '',
+          repaymentDate: new Date().toISOString().split('T')[0],
+          paymentMode: 'CASH',
+          referenceNo: '',
+          notes: '',
+        });
+      }
     }
-  }, [borrowedItem, isOpen]);
+  }, [borrowedItem, activeItems, isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(formData);
+  const handleItemChange = (e) => {
+    const id = e.target.value;
+    setSelectedId(id);
+    const item = activeItems.find((i) => i.id === id);
+    if (item) {
+      const remaining = Math.max(0, Number(item.targetAmount) - Number(item.paidAmount));
+      setFormData((prev) => ({
+        ...prev,
+        amount: remaining > 0 ? remaining : '',
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        amount: '',
+      }));
+    }
   };
 
-  if (!borrowedItem) return null;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const itemId = currentItem?.id;
+    if (!itemId) {
+      alert('Please select a record.');
+      return;
+    }
+    onSubmit(formData, itemId);
+  };
 
-  const remaining = Math.max(0, Number(borrowedItem.targetAmount) - Number(borrowedItem.paidAmount));
+  if (!isOpen) return null;
+
+  if (!borrowedItem && (!activeItems || activeItems.length === 0)) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Record Repayment"
+        size="sm"
+      >
+        <div style={{ textAlign: 'center', padding: '24px 0', color: '#64748b' }}>
+          <p style={{ fontWeight: 600, fontSize: '0.875rem' }}>No pending records found</p>
+          <p style={{ fontSize: '0.75rem', marginTop: 4 }}>You don't have any pending or partial borrowed money records to repay.</p>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '0 18px',
+              height: 36,
+              borderRadius: 10,
+              cursor: 'pointer',
+              background: '#f1f5f9',
+              border: '1px solid rgba(148,163,184,0.2)',
+              color: '#334155',
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+              marginTop: 16
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </Modal>
+    );
+  }
+
+  const remaining = currentItem ? Math.max(0, Number(currentItem.targetAmount) - Number(currentItem.paidAmount)) : 0;
+  const targetAmount = currentItem ? currentItem.targetAmount : 0;
+  const title = borrowedItem ? `Record Repayment to ${borrowedItem.personName}` : 'Record Repayment';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Record Repayment to ${borrowedItem.personName}`}
+      title={title}
       size="sm"
     >
       <form onSubmit={handleSubmit}>
+        {/* Lender selection dropdown (Only when no specific borrowedItem is passed) */}
+        {!borrowedItem && (
+          <div style={{ marginBottom: 12 }}>
+            <FormField label="Select Lender / Record *">
+              <select
+                name="selectedId"
+                value={selectedId}
+                onChange={handleItemChange}
+                style={selectBase}
+                required
+              >
+                {activeItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.personName} (Remaining: {formatCurrency(item.remainingAmount || 0)})
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+        )}
+
         {/* Info Banner */}
         <div
           style={{
@@ -69,7 +175,7 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, loadin
               Target Payback
             </span>
             <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a' }}>
-              {formatCurrency(borrowedItem.targetAmount)}
+              {formatCurrency(targetAmount)}
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
