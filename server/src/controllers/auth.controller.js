@@ -23,10 +23,10 @@ const login = async (req, res, next) => {
     const { user, accessToken, refreshToken } = await authService.login(req.body);
 
     res
-      .cookie('accessToken', accessToken, { ...COOKIE_OPTIONS, maxAge: 15 * 60 * 1000 })
-      .cookie('refreshToken', refreshToken, { ...COOKIE_OPTIONS, maxAge: 7 * 24 * 60 * 60 * 1000 });
+      .cookie('accessToken', accessToken, { ...COOKIE_OPTIONS, maxAge: 30 * 24 * 60 * 60 * 1000 })
+      .cookie('refreshToken', refreshToken, { ...COOKIE_OPTIONS, maxAge: 180 * 24 * 60 * 60 * 1000 });
 
-    return res.status(200).json(new ApiResponse(200, { user, accessToken }, 'Login successful.'));
+    return res.status(200).json(new ApiResponse(200, { user, accessToken, refreshToken }, 'Login successful.'));
   } catch (err) {
     next(err);
   }
@@ -44,16 +44,16 @@ const logout = async (req, res, next) => {
 
 const refreshToken = async (req, res, next) => {
   try {
-    const token = req.cookies?.refreshToken;
+    const token = req.cookies?.refreshToken || req.body?.refreshToken || req.headers?.['x-refresh-token'];
     if (!token) throw new ApiError(401, 'Refresh token not provided.');
 
     const { accessToken, refreshToken: newRefreshToken } = await authService.refresh(token);
 
     res
-      .cookie('accessToken', accessToken, { ...COOKIE_OPTIONS, maxAge: 15 * 60 * 1000 })
-      .cookie('refreshToken', newRefreshToken, { ...COOKIE_OPTIONS, maxAge: 7 * 24 * 60 * 60 * 1000 });
+      .cookie('accessToken', accessToken, { ...COOKIE_OPTIONS, maxAge: 30 * 24 * 60 * 60 * 1000 })
+      .cookie('refreshToken', newRefreshToken, { ...COOKIE_OPTIONS, maxAge: 180 * 24 * 60 * 60 * 1000 });
 
-    return res.status(200).json(new ApiResponse(200, { accessToken }, 'Token refreshed.'));
+    return res.status(200).json(new ApiResponse(200, { accessToken, refreshToken: newRefreshToken }, 'Token refreshed.'));
   } catch (err) {
     next(err);
   }

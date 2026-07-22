@@ -954,10 +954,25 @@ a:hover { color: var(--brand-300); }
 .loading-page {
   min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   background: var(--bg-base);
+  gap: 16px;
 }
+
+.loading-status-text {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  opacity: 0;
+  animation: fadeInText 0.4s ease 1.2s forwards;
+}
+
+@keyframes fadeInText {
+  to { opacity: 1; }
+}
+
 
 /* ── Animations ────────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
@@ -1085,3 +1100,275 @@ a:hover { color: var(--brand-300); }
 
   .auth-card { padding: 28px 20px; }
 }
+
+/* ── Distributor Cards Redesign ────────────────────────────────────────────── */
+.distributor-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all var(--transition-normal);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.distributor-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--border-strong);
+  transition: width var(--transition-fast);
+}
+
+.distributor-card.has-dues::before {
+  background: linear-gradient(to bottom, var(--error), var(--warning));
+}
+
+.distributor-card.no-dues::before {
+  background: linear-gradient(to bottom, var(--success), var(--brand-300));
+}
+
+.distributor-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-lg);
+}
+
+.distributor-card:hover::before {
+  width: 6px;
+}
+
+/* Header */
+.distributor-card-header {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.distributor-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 750;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.distributor-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.distributor-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.distributor-credit-pill {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--info-bg);
+  color: var(--info);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  display: inline-block;
+  align-self: flex-start;
+}
+
+/* Body */
+.distributor-card-body {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 14px;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.distributor-gstin {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--brand-700);
+  background: var(--brand-50);
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-self: flex-start;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(16, 185, 129, 0.12);
+}
+
+.distributor-gstin.no-gstin {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: normal;
+  border: none;
+}
+
+.distributor-gstin .gstin-label {
+  color: var(--text-muted);
+  margin-right: 4px;
+  font-weight: normal;
+}
+
+.distributor-contact-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.distributor-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.distributor-detail-row.align-start {
+  align-items: flex-start;
+}
+
+.detail-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.detail-icon.icon-award { color: var(--warning); }
+.detail-icon.icon-phone { color: var(--brand-500); }
+.detail-icon.icon-email { color: var(--info); }
+.detail-icon.icon-address { color: #f43f5e; margin-top: 2px; }
+
+.address-text {
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Footer */
+.distributor-card-footer {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+}
+
+.outstanding-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.outstanding-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.outstanding-amount {
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-family: monospace;
+}
+
+.outstanding-amount.dues-positive {
+  color: var(--error);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.05);
+}
+
+.outstanding-amount.dues-zero {
+  color: var(--text-muted);
+}
+
+/* Actions */
+.distributor-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.distributor-action-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  outline: none;
+}
+
+.distributor-action-btn.history-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--brand-50);
+  border-color: rgba(16, 185, 129, 0.15);
+  color: var(--brand-700);
+}
+
+.distributor-action-btn.history-btn:hover {
+  background: var(--brand-100);
+  border-color: var(--brand-400);
+  color: var(--brand-800);
+  transform: translateY(-0.5px);
+}
+
+.distributor-action-btn.edit-btn,
+.distributor-action-btn.delete-btn {
+  width: 28px;
+  height: 28px;
+}
+
+.distributor-action-btn.edit-btn:hover {
+  background: var(--info-bg);
+  border-color: var(--info);
+  color: var(--info);
+  transform: translateY(-0.5px);
+}
+
+.distributor-action-btn.delete-btn:hover {
+  background: var(--error-bg);
+  border-color: var(--error);
+  color: var(--error);
+  transform: translateY(-0.5px);
+}
+
+.action-icon {
+  margin-top: -1px;
+}
+

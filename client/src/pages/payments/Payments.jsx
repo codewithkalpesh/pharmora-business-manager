@@ -1,11 +1,13 @@
 // src/pages/payments/Payments.jsx
 import { useState, useEffect, useCallback } from 'react';
+import { Trash2 } from 'lucide-react';
 import { getPayments, deletePayment, getPaymentStats } from '../../api/payment.api';
 import { purchaseApi } from '../../api/purchase.api';
 import { PaymentForm } from './PaymentForm';
 import { DistributorLedger } from './DistributorLedger';
 import Modal from '../../components/common/Modal';
 import styles from './Payments.module.css';
+
 
 const fmt = (n) =>
   Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -97,7 +99,7 @@ export function Payments() {
   const hasActiveFilters = Object.values(filters).some((v) => !!v);
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Reverse this payment? The linked bill status will be recalculated.')) return;
+    if (!window.confirm('Are you sure you want to delete this payment transaction? This will update the outstanding balance for the distributor.')) return;
     try {
       await deletePayment(id);
       loadPayments();
@@ -270,9 +272,10 @@ export function Payments() {
                       <button
                         className={styles.actionBtn}
                         onClick={() => handleDelete(p.id)}
-                        title="Reverse this payment"
+                        title="Delete this payment"
                       >
-                        Reverse
+                        <Trash2 size={13} />
+                        Delete
                       </button>
                     </td>
                   </tr>

@@ -66,19 +66,25 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        const refreshToken = localStorage.getItem('pbm_refresh_token');
         const { data } = await axios.post(
           `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/refresh`,
-          {},
+          { refreshToken },
           { withCredentials: true }
         );
         const newToken = data.data?.accessToken;
+        const newRefreshToken = data.data?.refreshToken;
         localStorage.setItem('pbm_access_token', newToken);
+        if (newRefreshToken) {
+          localStorage.setItem('pbm_refresh_token', newRefreshToken);
+        }
         processQueue(null, newToken);
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
       } catch (refreshError) {
         processQueue(refreshError, null);
         localStorage.removeItem('pbm_access_token');
+        localStorage.removeItem('pbm_refresh_token');
         if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
           window.location.href = '/login';
         }

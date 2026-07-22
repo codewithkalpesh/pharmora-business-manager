@@ -8,8 +8,9 @@ export function ProtectedRoute({ children, allowedRoles }) {
 
   if (isLoading) {
     return (
-      <div className="loading-page">
+      <div className="loading-page" style={{ flexDirection: 'column', gap: '16px' }}>
         <div className="spinner" style={{ width: 32, height: 32 }} />
+        <p className="loading-status-text">Connecting to secure database... (may take a moment on first launch)</p>
       </div>
     );
   }
@@ -30,8 +31,9 @@ export function PublicRoute({ children }) {
 
   if (isLoading) {
     return (
-      <div className="loading-page">
+      <div className="loading-page" style={{ flexDirection: 'column', gap: '16px' }}>
         <div className="spinner" style={{ width: 32, height: 32 }} />
+        <p className="loading-status-text">Connecting to secure database... (may take a moment on first launch)</p>
       </div>
     );
   }

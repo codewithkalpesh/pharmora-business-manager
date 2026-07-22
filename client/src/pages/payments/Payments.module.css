@@ -307,16 +307,25 @@
 }
 
 .actionBtn {
-  background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.05);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   color: #f87171;
-  padding: 4px 12px;
+  padding: 6px 12px;
   border-radius: 6px;
   font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
 }
-.actionBtn:hover { background: rgba(239, 68, 68, 0.1); }
+.actionBtn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  transform: translateY(-0.5px);
+}
 
 .emptyState {
   text-align: center;

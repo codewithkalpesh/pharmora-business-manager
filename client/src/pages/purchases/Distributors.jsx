@@ -12,6 +12,39 @@ import { formatCurrency } from '../../lib/utils';
 import DistributorForm from './DistributorForm';
 import DistributorLedger from '../payments/DistributorLedger';
 
+// Helper to generate consistent colorful avatar style based on name hash
+const getAvatarStyle = (name) => {
+  const hash = Array.from(name || '').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const colors = [
+    { bg: '#eff6ff', color: '#1d4ed8', border: 'rgba(59, 130, 246, 0.2)' },     // Blue
+    { bg: '#ecfdf5', color: '#047857', border: 'rgba(16, 185, 129, 0.2)' },    // Emerald
+    { bg: '#f5f3ff', color: '#6d28d9', border: 'rgba(109, 40, 217, 0.2)' },    // Purple
+    { bg: '#fdf2f8', color: '#be185d', border: 'rgba(219, 39, 119, 0.2)' },    // Pink
+    { bg: '#fffbeb', color: '#b45309', border: 'rgba(245, 158, 11, 0.2)' },     // Amber
+    { bg: '#ecfeff', color: '#0891b2', border: 'rgba(6, 182, 212, 0.2)' },     // Cyan
+    { bg: '#f0fdf4', color: '#15803d', border: 'rgba(22, 163, 74, 0.2)' },     // Green
+    { bg: '#faf5ff', color: '#7e22ce', border: 'rgba(126, 34, 206, 0.2)' },    // Violet
+  ];
+  const theme = colors[hash % colors.length];
+  return {
+    backgroundColor: theme.bg,
+    color: theme.color,
+    borderWidth: '1px',
+    borderStyle: 'solid',
+    borderColor: theme.border,
+  };
+};
+
+// Helper to extract initials
+const getInitials = (name) => {
+  if (!name) return '??';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+};
+
 export function Distributors() {
   const queryClient = useQueryClient();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -35,6 +68,7 @@ export function Distributors() {
 
   // Delete mutation
   const deleteMutation = useMutation({
+    queryFn: (id) => purchaseApi.deleteDistributor(id),
     mutationFn: (id) => purchaseApi.deleteDistributor(id),
     onSuccess: () => {
       queryClient.invalidateQueries(['distributors']);
@@ -90,99 +124,96 @@ export function Distributors() {
           <span>Loading suppliers...</span>
         </div>
       ) : distributors.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid-3 gap-6">
           {distributors.map((d) => (
-            <div key={d.id} className="card relative border border-slate-800/80 bg-slate-900/40 p-5 hover:border-slate-700/80 transition-all flex flex-col justify-between space-y-4">
+            <div key={d.id} className={`distributor-card ${d.outstandingDues > 0 ? 'has-dues' : 'no-dues'}`}>
               
               {/* Header details */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-start">
-                  <h4 className="text-base font-semibold text-slate-100 truncate max-w-[80%]">{d.name}</h4>
-                  <span className="inline-block rounded px-1.5 py-0.5 text-[10px] bg-slate-855 text-slate-400 font-semibold uppercase">
+              <div className="distributor-card-header">
+                <div className="distributor-avatar" style={getAvatarStyle(d.name)}>
+                  {getInitials(d.name)}
+                </div>
+                <div className="distributor-header-text">
+                  <h4 className="distributor-name" title={d.name}>{d.name}</h4>
+                  <span className="distributor-credit-pill">
                     {d.creditDays} Days Credit
                   </span>
                 </div>
-                {d.gstNumber ? (
-                  <span className="text-[10px] text-emerald-400 font-semibold tracking-wider uppercase font-mono">{d.gstNumber}</span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 italic">No GSTIN provided</span>
-                )}
               </div>
 
               {/* Contact Information */}
-              <div className="space-y-2 border-t border-slate-800/60 pt-3 text-xs text-slate-400">
-                {d.contactPerson && (
-                  <div className="flex items-center gap-2">
-                    <Award className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    <span className="text-slate-350">{d.contactPerson}</span>
+              <div className="distributor-card-body">
+                {d.gstNumber ? (
+                  <div className="distributor-gstin font-mono" title="GSTIN Number">
+                    <span className="gstin-label">GSTIN:</span> {d.gstNumber}
                   </div>
+                ) : (
+                  <div className="distributor-gstin no-gstin">No GSTIN provided</div>
                 )}
-                {d.phone && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    <span>{d.phone}</span>
-                  </div>
-                )}
-                {d.email && (
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-3.5 w-3.5 text-slate-500 shrink-0" />
-                    <span className="truncate">{d.email}</span>
-                  </div>
-                )}
-                {d.address && (
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-3.5 w-3.5 text-slate-500 shrink-0 mt-0.5" />
-                    <span className="line-clamp-2">{d.address}</span>
-                  </div>
-                )}
+
+                <div className="distributor-contact-details">
+                  {d.contactPerson && (
+                    <div className="distributor-detail-row" title="Contact Person">
+                      <Award className="detail-icon icon-award" />
+                      <span>{d.contactPerson}</span>
+                    </div>
+                  )}
+                  {d.phone && (
+                    <div className="distributor-detail-row" title="Phone">
+                      <Phone className="detail-icon icon-phone" />
+                      <span>{d.phone}</span>
+                    </div>
+                  )}
+                  {d.email && (
+                    <div className="distributor-detail-row" title="Email">
+                      <Mail className="detail-icon icon-email" />
+                      <span className="truncate">{d.email}</span>
+                    </div>
+                  )}
+                  {d.address && (
+                    <div className="distributor-detail-row align-start" title="Address">
+                      <MapPin className="detail-icon icon-address" />
+                      <span className="address-text">{d.address}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Outstanding dues & action tools */}
-              <div className="flex items-center justify-between border-t border-slate-800/60 pt-3 mt-auto">
-                <div>
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider block">Outstanding dues</span>
-                  <span className={`text-sm font-bold font-mono ${d.outstandingDues > 0 ? 'text-red-400' : 'text-slate-400'}`}>
+              <div className="distributor-card-footer">
+                <div className="outstanding-container">
+                  <span className="outstanding-label">Outstanding dues</span>
+                  <span className={`outstanding-amount ${d.outstandingDues > 0 ? 'dues-positive' : 'dues-zero'}`}>
                     {formatCurrency(d.outstandingDues)}
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="distributor-actions">
                   <button
                     type="button"
+                    className="distributor-action-btn history-btn"
                     onClick={() => setLedgerDistributorId(d.id)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      padding: '4px 10px',
-                      fontSize: '0.75rem',
-                      borderRadius: 6,
-                      background: '#1e293b',
-                      border: '1px solid rgba(148,163,184,0.2)',
-                      color: '#cbd5e1',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
                     title="View bill history and transaction ledger"
                   >
-                    <FileText size={13} color="#10b981" />
+                    <FileText size={13} className="action-icon" />
                     History
                   </button>
 
                   <button
+                    type="button"
+                    className="distributor-action-btn edit-btn"
                     onClick={() => handleOpenForm(d)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors"
                     title="Edit supplier profile"
                   >
-                    <Edit className="h-4 w-4" />
+                    <Edit size={13} />
                   </button>
                   <button
+                    type="button"
+                    className="distributor-action-btn delete-btn"
                     onClick={() => handleDelete(d.id)}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-red-400 transition-colors"
                     title="Delete distributor"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 size={13} />
                   </button>
                 </div>
               </div>

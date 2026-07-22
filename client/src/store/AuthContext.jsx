@@ -37,8 +37,11 @@ export function AuthProvider({ children }) {
 
   const login = async (credentials) => {
     const { data } = await authApi.login(credentials);
-    const { user: u, accessToken } = data.data;
+    const { user: u, accessToken, refreshToken } = data.data;
     localStorage.setItem('pbm_access_token', accessToken);
+    if (refreshToken) {
+      localStorage.setItem('pbm_refresh_token', refreshToken);
+    }
     setUser(u);
     setIsAuthenticated(true);
     return u;
@@ -49,6 +52,7 @@ export function AuthProvider({ children }) {
       await authApi.logout();
     } finally {
       localStorage.removeItem('pbm_access_token');
+      localStorage.removeItem('pbm_refresh_token');
       setUser(null);
       setIsAuthenticated(false);
     }
