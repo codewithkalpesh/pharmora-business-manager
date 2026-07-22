@@ -51,7 +51,8 @@ export function Register() {
   const getErrorMessage = (err) => {
     console.error('Registration error details:', err);
     if (err?.message === 'Network Error' || !err?.response) {
-      return 'Network Error: Unable to reach the server at http://localhost:5000. Please verify the backend server is running.';
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      return `Network Error: Unable to reach the server at ${apiUrl}. Please verify the backend server is running.`;
     }
     const response = err?.response?.data;
     if (response?.message) return response.message;
