@@ -89,7 +89,7 @@ app.use('/api/auth', authLimiter); // stricter rate limit on auth
 app.use('/api', routes);
 
 // Fallback to client index.html for SPA routing
-app.get('*', (req, res, next) => {
+app.get('/*splat', (req, res, next) => {
   if (
     !req.path.startsWith('/api') &&
     !req.path.startsWith('/uploads') &&
