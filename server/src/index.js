@@ -30,12 +30,14 @@ app.use(
       // Allow non-browser requests (Postman, mobile apps, server-to-server)
       if (!origin) return callback(null, true);
 
-      // Allow configured origins or any localhost/127.0.0.1 port in dev
+      // Allow configured origins, any localhost/127.0.0.1 port, or Vercel deployments
       const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
-      if (configuredOrigins.includes(origin) || isLocalhost || process.env.NODE_ENV !== 'production') {
+      const isVercel = /^https:\/\/.*\.vercel\.app$/.test(origin);
+      if (configuredOrigins.includes(origin) || isLocalhost || isVercel || process.env.NODE_ENV !== 'production') {
         return callback(null, true);
       }
 
+      console.warn(`[CORS] Blocked request from origin: ${origin}`);
       return callback(null, false);
     },
     credentials: true,
