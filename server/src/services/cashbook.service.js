@@ -278,6 +278,95 @@ class CashBookService {
       await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
     }
   }
+
+  /**
+   * Recalculate daily totalExpenses and cashDifference for CashBook from raw Expense & Payment records.
+   */
+  async syncTotalExpenses(userId, date) {
+    if (!userId || !date) return;
+    const prisma = require('../config/prisma');
+
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 1. Fetch expenses for this user on this day
+    const expenses = await prisma.expense.findMany({
+      where: {
+        createdById: userId,
+        date: { gte: startOfDay, lte: endOfDay }
+      }
+    });
+
+    // 2. Fetch distributor payments for this user on this day
+    const payments = await prisma.distributorPayment.findMany({
+      where: {
+        createdById: userId,
+        paymentDate: { gte: startOfDay, lte: endOfDay }
+      }
+    });
+
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0) + 
+                          payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+    const cashExpenses = expenses.filter(e => e.paymentMode === 'CASH').reduce((sum, e) => sum + Number(e.amount), 0) +
+                         payments.filter(p => p.paymentMode === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
+
+    // 3. Find cashbook entry
+    let cashBook = await prisma.cashBook.findFirst({
+      where: {
+        createdById: userId,
+        date: { gte: startOfDay, lte: endOfDay }
+      }
+    });
+
+    if (cashBook) {
+      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - cashExpenses;
+      const cashDifference = Number(cashBook.closingCash) - expectedClosing;
+
+      await prisma.cashBook.update({
+        where: { id: cashBook.id },
+        data: {
+          totalExpenses,
+          cashDifference
+        }
+      });
+    } else {
+      // Auto-create daily cashbook if expenses were recorded
+      if (totalExpenses > 0) {
+        const prevEntry = await prisma.cashBook.findFirst({
+          where: {
+            createdById: userId,
+            date: { lt: startOfDay }
+          },
+          orderBy: { date: 'desc' }
+        });
+        const suggestedOpening = prevEntry ? Number(prevEntry.closingCash) : 0;
+        
+        const expectedClosing = suggestedOpening - cashExpenses;
+        const cashDifference = 0 - expectedClosing; // closingCash defaults to 0
+
+        await prisma.cashBook.create({
+          data: {
+            date: startOfDay,
+            openingCash: suggestedOpening,
+            cashSales: 0,
+            upiReceipts: 0,
+            cardReceipts: 0,
+            otherIncome: 0,
+            totalExpenses,
+            bankDeposit: 0,
+            closingCash: 0,
+            cashDifference,
+            notes: `Auto-created from daily transactions.`,
+            createdById: userId
+          }
+        });
+      }
+    }
+  }
 }
 
 module.exports = new CashBookService();
+

@@ -1,5 +1,6 @@
 const recurringRepository = require('../repositories/recurring.repository');
 const prisma = require('../config/prisma');
+const cashBookService = require('./cashbook.service');
 const ApiError = require('../utils/ApiError');
 
 class RecurringService {
@@ -175,6 +176,9 @@ class RecurringService {
           createdById: recurring.createdById,
         },
       });
+
+      // Sync recurring expense to CashBook entry
+      await cashBookService.syncTotalExpenses(recurring.createdById, executionDate);
     } else if (recurring.type === 'INCOME') {
       const existingCashBook = await prisma.cashBook.findFirst({
         where: { date: executionDate, createdById: recurring.createdById },

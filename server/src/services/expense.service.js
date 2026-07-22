@@ -1,6 +1,7 @@
 // src/services/expense.service.js
 const expenseRepository = require('../repositories/expense.repository');
 const broadcastService = require('./broadcast.service');
+const cashBookService = require('./cashbook.service');
 const ApiError = require('../utils/ApiError');
 const fs = require('fs');
 const path = require('path');
@@ -47,10 +48,8 @@ class ExpenseService {
       await this._syncExpenseToRecurring(expense);
     }
 
-    // Sync CASH expense to CashBook entry history
-    if (expense.paymentMode === 'CASH') {
-      await this._syncExpenseToCashBook(expense);
-    }
+    // Sync expense to CashBook entry history
+    await cashBookService.syncTotalExpenses(userId, expense.date);
 
     // Broadcast transaction
     broadcastService.broadcastTransaction({
@@ -162,6 +161,12 @@ class ExpenseService {
       }
     }
 
+    // Sync cashbook totals for old and new date
+    await cashBookService.syncTotalExpenses(userId, existing.date);
+    if (existing.date.getTime() !== updatedExpense.date.getTime()) {
+      await cashBookService.syncTotalExpenses(userId, updatedExpense.date);
+    }
+
     return updatedExpense;
   }
 
@@ -179,7 +184,12 @@ class ExpenseService {
     // Clean up any linked bank withdrawal transaction before deleting
     await this._cleanupExpenseBankSync(existing);
 
-    return expenseRepository.deleteExpense(id);
+    const deleted = await expenseRepository.deleteExpense(id);
+
+    // Sync cashbook totals for the date of deletion
+    await cashBookService.syncTotalExpenses(existing.createdById, existing.date);
+
+    return deleted;
   }
 
   async getCategories(userId) {
@@ -241,6 +251,26 @@ class ExpenseService {
     fs.unlink(filePath, (err) => {
       if (err) console.error(`Failed to delete file: ${filePath}`, err);
     });
+  }
+
+  /**
+   * Reverse bank withdrawal and delete tagged bank transaction for a deleted expense.
+   */
+  async _cleanupExpenseBankSync(expense) {
+    if (!expense) return;
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+
+    const tag = `[Expense:${expense.id}]`;
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      // Reverse withdrawal: add back amount to bank balance
+      await bankRepository.adjustBalance(existingTxn.accountId, Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
+    }
   }
 
   /**
@@ -360,58 +390,6 @@ class ExpenseService {
     }
   }
 
-  /**
-   * Update CashBook totalExpenses for the expense date when a CASH expense is recorded.
-   */
-  async _syncExpenseToCashBook(expense) {
-    const prisma = require('../config/prisma');
-    const expenseDate = new Date(expense.date);
-    const startOfDay = new Date(expenseDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(expenseDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    let cashBook = await prisma.cashBook.findFirst({
-      where: {
-        date: { gte: startOfDay, lte: endOfDay },
-        createdById: expense.createdById,
-      },
-    });
-
-    const expAmount = Number(expense.amount);
-
-    if (cashBook) {
-      const newTotalExp = Number(cashBook.totalExpenses) + expAmount;
-      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - newTotalExp;
-      const newDifference = Number(cashBook.closingCash) - expectedClosing;
-
-      await prisma.cashBook.update({
-        where: { id: cashBook.id },
-        data: {
-          totalExpenses: newTotalExp,
-          cashDifference: newDifference,
-        },
-      });
-    } else {
-      // Create a CashBook entry for the date if none exists
-      await prisma.cashBook.create({
-        data: {
-          date: startOfDay,
-          openingCash: 0,
-          cashSales: 0,
-          upiReceipts: 0,
-          cardReceipts: 0,
-          otherIncome: 0,
-          totalExpenses: expAmount,
-          bankDeposit: 0,
-          closingCash: 0,
-          cashDifference: -expAmount,
-          notes: `Auto-created from expense: ${expense.description}`,
-          createdById: expense.createdById,
-        },
-      });
-    }
-  }
 }
 
 module.exports = new ExpenseService();

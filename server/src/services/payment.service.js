@@ -2,6 +2,7 @@
 const paymentRepository = require('../repositories/payment.repository');
 const purchaseRepository = require('../repositories/purchase.repository');
 const broadcastService = require('./broadcast.service');
+const cashBookService = require('./cashbook.service');
 const ApiError = require('../utils/ApiError');
 
 class PaymentService {
@@ -40,10 +41,8 @@ class PaymentService {
     // Recalculate all bill statuses for this distributor
     await this._recalcDistributorBills(data.distributorId);
 
-    // Sync CASH distributor payment into CashBook for that date
-    if (payment.paymentMode === 'CASH') {
-      await this._syncPaymentToCashBook(payment, distributor.name);
-    }
+    // Sync distributor payment into CashBook for that date
+    await cashBookService.syncTotalExpenses(userId, payment.paymentDate);
 
     // Broadcast transaction
     broadcastService.broadcastTransaction({
@@ -114,10 +113,8 @@ class PaymentService {
     const distributorId = payment.distributorId;
     await paymentRepository.deletePayment(id);
 
-    // Clean up CashBook sync if payment mode was CASH
-    if (payment.paymentMode === 'CASH') {
-      await this._cleanupPaymentFromCashBook(payment);
-    }
+    // Sync CashBook totals for the date of deletion
+    await cashBookService.syncTotalExpenses(payment.createdById, payment.paymentDate);
 
     // Recalculate all bill statuses for this distributor after reversing payment
     if (distributorId) {
@@ -244,86 +241,6 @@ class PaymentService {
     }
   }
 
-  async _syncPaymentToCashBook(payment, distributorName) {
-    const prisma = require('../config/prisma');
-    const paymentDate = new Date(payment.paymentDate);
-    const startOfDay = new Date(paymentDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(paymentDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    let cashBook = await prisma.cashBook.findFirst({
-      where: {
-        date: { gte: startOfDay, lte: endOfDay },
-        createdById: payment.createdById,
-      },
-    });
-
-    const amt = Number(payment.amount);
-
-    if (cashBook) {
-      const newTotalExp = Number(cashBook.totalExpenses) + amt;
-      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) + Number(cashBook.upiReceipts) + Number(cashBook.cardReceipts) + Number(cashBook.otherIncome) - newTotalExp - Number(cashBook.bankDeposit);
-      const newDifference = Number(cashBook.closingCash) - expectedClosing;
-
-      await prisma.cashBook.update({
-        where: { id: cashBook.id },
-        data: {
-          totalExpenses: newTotalExp,
-          cashDifference: newDifference,
-        },
-      });
-    } else {
-      await prisma.cashBook.create({
-        data: {
-          date: startOfDay,
-          openingCash: 0,
-          cashSales: 0,
-          upiReceipts: 0,
-          cardReceipts: 0,
-          otherIncome: 0,
-          totalExpenses: amt,
-          bankDeposit: 0,
-          closingCash: 0,
-          cashDifference: -amt,
-          notes: `Auto-created from supplier payment to ${distributorName || 'Supplier'}`,
-          createdById: payment.createdById,
-        },
-      });
-    }
-  }
-
-  async _cleanupPaymentFromCashBook(payment) {
-    if (!payment) return;
-    const prisma = require('../config/prisma');
-    const paymentDate = new Date(payment.paymentDate);
-    const startOfDay = new Date(paymentDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(paymentDate);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const cashBook = await prisma.cashBook.findFirst({
-      where: {
-        date: { gte: startOfDay, lte: endOfDay },
-        createdById: payment.createdById,
-      },
-    });
-
-    if (cashBook) {
-      const amt = Number(payment.amount);
-      const newTotalExp = Math.max(0, Number(cashBook.totalExpenses) - amt);
-      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) + Number(cashBook.upiReceipts) + Number(cashBook.cardReceipts) + Number(cashBook.otherIncome) - newTotalExp - Number(cashBook.bankDeposit);
-      const newDifference = Number(cashBook.closingCash) - expectedClosing;
-
-      await prisma.cashBook.update({
-        where: { id: cashBook.id },
-        data: {
-          totalExpenses: newTotalExp,
-          cashDifference: newDifference,
-        },
-      });
-    }
-  }
 }
 
 module.exports = new PaymentService();

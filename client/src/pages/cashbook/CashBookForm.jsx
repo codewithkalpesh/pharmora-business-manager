@@ -201,6 +201,25 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         </Field>
       </div>
 
+      {/* ── Section: Expenses ── */}
+      <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, marginTop: 4 }}>
+        Daily Outflows
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <Field label="Total Expenses (Auto)" icon={TrendingDown} iconColor="#ef4444" error={errors.totalExpenses?.message}>
+          <input
+            type="number"
+            step="0.01"
+            readOnly
+            style={{ ...inputStyle(false), color: '#64748b', cursor: 'not-allowed', background: '#f1f5f9' }}
+            {...register('totalExpenses')}
+          />
+        </Field>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', fontSize: '0.75rem', color: '#64748b', marginTop: 15, paddingLeft: 4 }}>
+          ℹ️ Auto-filled from daily Expenses & Payments.
+        </div>
+      </div>
+
       {/* ── Cash Reconciliation Summary ── */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
