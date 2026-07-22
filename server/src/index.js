@@ -6,6 +6,8 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
 
 const routes = require('./routes');
 const { errorHandler, notFound } = require('./middlewares/error.middleware');
@@ -71,6 +73,12 @@ app.use(cookieParser());
 // ── Static Uploads ────────────────────────────────────────────────────────────
 app.use('/uploads', express.static('uploads'));
 
+// Serve client built files if they exist
+const clientDistPath = path.join(__dirname, '../../client/dist');
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+}
+
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), service: 'Pharmora API' });
@@ -79,6 +87,18 @@ app.get('/health', (req, res) => {
 // ── API Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth', authLimiter); // stricter rate limit on auth
 app.use('/api', routes);
+
+// Fallback to client index.html for SPA routing
+app.get('*', (req, res, next) => {
+  if (
+    !req.path.startsWith('/api') &&
+    !req.path.startsWith('/uploads') &&
+    fs.existsSync(path.join(clientDistPath, 'index.html'))
+  ) {
+    return res.sendFile(path.join(clientDistPath, 'index.html'));
+  }
+  next();
+});
 
 // ── 404 & Error Handlers ──────────────────────────────────────────────────────
 app.use(notFound);
