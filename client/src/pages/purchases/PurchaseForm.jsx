@@ -51,7 +51,7 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
 
   const { data: bankAccounts = [] } = useQuery({
     queryKey: ['bank-accounts'],
-    queryFn: () => bankApi.getAccounts().then((r) => r.data.data || []),
+    queryFn: () => bankApi.getAccounts().then((r) => r.data.accounts || []),
   });
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
