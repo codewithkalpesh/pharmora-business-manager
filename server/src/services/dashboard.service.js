@@ -30,6 +30,7 @@ const getKPIs = async (userId) => {
 
   const [
     todayCashBook,
+    latestCashBook,
     monthlyOperatingExpenses,
     monthlyDistributorPayments,
     todayOperatingExpenses,
@@ -50,6 +51,11 @@ const getKPIs = async (userId) => {
     // Today's cash book entry for this user
     prisma.cashBook.findFirst({
       where: { date: { gte: today.start, lte: today.end }, createdById: userId },
+    }),
+    // Latest cash book entry for actual cash in hand
+    prisma.cashBook.findFirst({
+      where: { createdById: userId },
+      orderBy: { date: 'desc' },
     }),
     // Monthly operating expenses for this user
     prisma.expense.aggregate({
@@ -282,7 +288,7 @@ const getKPIs = async (userId) => {
     kpis: {
       todaySales,
       todayExpenses: todayExp,
-      cashInHand: Number(todayCashBook?.closingCash || 0),
+      cashInHand: Number(latestCashBook?.closingCash || 0),
       bankBalance: totalBankBalance,
       distributorPending: distributorPendingAmount,
       customerCredit: customerOutstandingAmount,
