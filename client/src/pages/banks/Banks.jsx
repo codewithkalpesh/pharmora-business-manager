@@ -140,9 +140,9 @@ export function Banks() {
   };
 
   const txnIcon = (type) => {
-    if (type === 'DEPOSIT') return <ArrowDownLeft className="h-4 w-4 text-emerald-400" />;
-    if (type === 'WITHDRAWAL') return <ArrowUpRight className="h-4 w-4 text-red-400" />;
-    return <ArrowLeftRight className="h-4 w-4 text-blue-400" />;
+    if (type === 'DEPOSIT') return <ArrowDownLeft className="h-4 w-4 text-success" />;
+    if (type === 'WITHDRAWAL') return <ArrowUpRight className="h-4 w-4 text-error" />;
+    return <ArrowLeftRight className="h-4 w-4 text-info" />;
   };
 
   return (
@@ -163,7 +163,7 @@ export function Banks() {
             </button>
             {isOwnerOrManager && (
               <button
-                className="btn btn-primary btn-sm bg-gradient-to-r from-emerald-500 to-teal-500 border-none text-slate-950 font-semibold"
+                className="btn btn-primary btn-sm"
                 onClick={handleAddAccount}
               >
                 <Plus className="h-4 w-4" /> Add Account
@@ -175,23 +175,23 @@ export function Banks() {
 
       {/* KPI Stats */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+        <div className="grid-4 mb-6">
           <div className="kpi-card">
             <div className="kpi-label">Total Bank Balance</div>
-            <div className="kpi-value text-emerald-400">{formatCurrency(stats.totalBalance)}</div>
-            <div className="text-[11px] text-slate-450 mt-1">{stats.accountCount} active accounts</div>
+            <div className="kpi-value text-success">{formatCurrency(stats.totalBalance)}</div>
+            <div className="text-xs text-muted mt-1">{stats.accountCount} active accounts</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Deposits This Month</div>
-            <div className="kpi-value text-green-400">{formatCurrency(stats.monthDeposits)}</div>
+            <div className="kpi-value text-success">{formatCurrency(stats.monthDeposits)}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Withdrawals This Month</div>
-            <div className="kpi-value text-red-400">{formatCurrency(stats.monthWithdrawals)}</div>
+            <div className="kpi-value text-error">{formatCurrency(stats.monthWithdrawals)}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Net Cash Flow (Month)</div>
-            <div className={`kpi-value ${stats.monthDeposits - stats.monthWithdrawals >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+            <div className={`kpi-value ${stats.monthDeposits - stats.monthWithdrawals >= 0 ? 'text-success' : 'text-error'}`}>
               {formatCurrency(stats.monthDeposits - stats.monthWithdrawals)}
             </div>
           </div>
@@ -200,35 +200,35 @@ export function Banks() {
 
       {/* Bank Account Cards */}
       {accounts.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid-3 mb-6">
           {accounts.map((a) => (
             <div
               key={a.id}
-              className={`card relative border p-5 transition-all ${
-                a.isPrimary
-                  ? 'border-amber-500/30 bg-amber-500/[0.02] hover:border-amber-500/50'
-                  : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'
-              }`}
+              className="card relative flex flex-col justify-between transition-all"
+              style={{
+                borderLeft: a.isPrimary ? '4px solid var(--warning)' : '4px solid var(--info)',
+                boxShadow: 'var(--shadow-sm)',
+              }}
             >
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Building2 className="h-5 w-5 text-blue-400" />
-                    <h4 className="text-sm font-bold text-slate-100">{a.bankName}</h4>
+                    <Building2 className="h-5 w-5 text-blue-500" />
+                    <h4 className="text-sm font-bold text-slate-800">{a.bankName}</h4>
                     {a.isPrimary && (
-                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">
+                      <span className="badge badge-warning">
                         Primary
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-slate-400 mt-0.5">{a.accountName}</div>
+                  <div className="text-xs text-muted mt-0.5">{a.accountName}</div>
                 </div>
                 {isOwnerOrManager && (
                   <div className="flex gap-1">
                     {!a.isPrimary && (
                       <button
                         onClick={() => handleSetPrimary(a.id)}
-                        className="rounded-lg p-1.5 text-slate-455 hover:bg-slate-800 hover:text-amber-400 transition-colors"
+                        className="rounded-lg p-1.5 text-muted hover:bg-slate-100 hover:text-warning transition-colors"
                         title="Set as Primary Account"
                       >
                         <Star className="h-3.5 w-3.5" />
@@ -236,14 +236,14 @@ export function Banks() {
                     )}
                     <button
                       onClick={() => handleEditAccount(a)}
-                      className="rounded-lg p-1.5 text-slate-455 hover:bg-slate-800 hover:text-slate-100 transition-colors"
+                      className="rounded-lg p-1.5 text-muted hover:bg-slate-100 hover:text-primary transition-colors"
                       title="Edit"
                     >
                       <Edit className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => handleDeleteAccount(a.id)}
-                      className="rounded-lg p-1.5 text-slate-455 hover:bg-slate-800 hover:text-red-400 transition-colors"
+                      className="rounded-lg p-1.5 text-muted hover:bg-slate-100 hover:text-error transition-colors"
                       title="Delete"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -252,11 +252,11 @@ export function Banks() {
                 )}
               </div>
 
-              <div className="text-2xl font-bold text-slate-50 mt-2 tabular-nums">
+              <div className="text-2xl font-extrabold text-slate-900 mt-2 font-mono tabular-nums">
                 {formatCurrency(a.currentBalance)}
               </div>
 
-              <div className="flex justify-between mt-3 text-[10px] text-slate-500 uppercase tracking-wider font-semibold">
+              <div className="flex justify-between mt-3 text-xs text-muted font-mono">
                 <span>A/C: {maskAccNo(a.accountNumber)}</span>
                 {a.ifscCode && <span>IFSC: {a.ifscCode}</span>}
               </div>
@@ -266,7 +266,7 @@ export function Banks() {
       )}
 
       {/* Transaction Filters */}
-      <div className="flex flex-wrap gap-4 items-center bg-slate-900/40 border border-slate-800 p-4 rounded-xl">
+      <div className="card flex flex-wrap gap-4 items-center p-4 mb-6 shadow-sm">
         <select
           value={filterAccount}
           onChange={(e) => setFilterAccount(e.target.value)}
@@ -293,7 +293,7 @@ export function Banks() {
           <option value="TRANSFER">Transfer</option>
         </select>
 
-        <div className="flex gap-2 items-center text-xs text-slate-400">
+        <div className="flex gap-2 items-center text-xs text-muted">
           <span>Range:</span>
           <input
             type="date"
@@ -314,72 +314,72 @@ export function Banks() {
       </div>
 
       {/* Transaction Table */}
-      <div className="card-glass border border-slate-800/80 rounded-2xl overflow-hidden bg-slate-950/30">
+      <div className="table-wrapper mb-6 shadow-sm">
         {loading ? (
-          <div className="flex flex-col items-center justify-center p-16 text-slate-400 space-y-3">
-            <RefreshCw className="h-8 w-8 animate-spin text-emerald-500" />
+          <div className="flex flex-col items-center justify-center p-16 text-muted space-y-3">
+            <RefreshCw className="h-8 w-8 animate-spin text-brand-500" />
             <span>Loading transactions...</span>
           </div>
         ) : transactions.length > 0 ? (
-          <table className="w-full text-left text-xs text-slate-300 border-collapse">
-            <thead className="bg-slate-900/60 text-slate-400 uppercase tracking-wider text-[10px] font-semibold border-b border-slate-800">
+          <table className="table">
+            <thead>
               <tr>
-                <th className="px-5 py-3.5">Type</th>
-                <th className="px-5 py-3.5">Date</th>
-                <th className="px-5 py-3.5">Account</th>
-                <th className="px-5 py-3.5">Description</th>
-                <th className="px-5 py-3.5">Reference</th>
-                <th className="px-5 py-3.5 text-right">Amount</th>
-                <th className="px-5 py-3.5 text-right">Running Bal.</th>
-                {isOwnerOrManager && <th className="px-5 py-3.5 text-center">Action</th>}
+                <th>Type</th>
+                <th>Date</th>
+                <th>Account</th>
+                <th>Description</th>
+                <th>Reference</th>
+                <th className="text-right">Amount</th>
+                <th className="text-right">Running Bal.</th>
+                {isOwnerOrManager && <th className="text-center">Action</th>}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/50">
+            <tbody>
               {transactions.map((t) => (
-                <tr key={t.id} className="hover:bg-slate-900/30 transition-colors">
-                  <td className="px-5 py-3.5">
+                <tr key={t.id}>
+                  <td>
                     <div className="flex items-center gap-2">
                       {txnIcon(t.type)}
                       <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                        t.type === 'DEPOSIT' ? 'text-emerald-400' :
-                        t.type === 'WITHDRAWAL' ? 'text-red-400' : 'text-blue-400'
+                        t.type === 'DEPOSIT' ? 'text-success' :
+                        t.type === 'WITHDRAWAL' ? 'text-error' : 'text-info'
                       }`}>
                         {t.type}
                       </span>
                     </div>
                   </td>
-                  <td className="px-5 py-3.5 whitespace-nowrap text-slate-400">{fmtDate(t.date)}</td>
-                  <td className="px-5 py-3.5">
-                    <div className="font-semibold text-slate-200">{t.account?.bankName}</div>
-                    <div className="text-[10px] text-slate-500">{t.account?.accountName}</div>
+                  <td className="whitespace-nowrap text-muted">{fmtDate(t.date)}</td>
+                  <td>
+                    <div className="font-semibold text-slate-800">{t.account?.bankName}</div>
+                    <div className="text-[10px] text-muted">{t.account?.accountName}</div>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-200 max-w-[200px] truncate">
+                  <td className="text-slate-700 max-w-[200px] truncate">
                     {t.description}
                     {t.type === 'TRANSFER' && t.transferTo && (
-                      <div className="text-[10px] text-blue-400 mt-0.5">
+                      <div className="text-[10px] text-info mt-0.5">
                         → {t.transferTo.bankName} — {t.transferTo.accountName}
                       </div>
                     )}
                     {t.transferFrom && (
-                      <div className="text-[10px] text-blue-400 mt-0.5">
+                      <div className="text-[10px] text-info mt-0.5">
                         ← {t.transferFrom.bankName} — {t.transferFrom.accountName}
                       </div>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-slate-450">{t.referenceNo || '—'}</td>
-                  <td className={`px-5 py-3.5 text-right font-bold tabular-nums ${
-                    t.type === 'DEPOSIT' ? 'text-emerald-400' : t.type === 'WITHDRAWAL' ? 'text-red-400' : 'text-blue-400'
+                  <td className="text-muted">{t.referenceNo || '—'}</td>
+                  <td className={`text-right font-bold font-mono ${
+                    t.type === 'DEPOSIT' ? 'text-success' : t.type === 'WITHDRAWAL' ? 'text-error' : 'text-info'
                   }`}>
                     {t.type === 'DEPOSIT' ? '+' : t.type === 'WITHDRAWAL' ? '-' : '↔'} {formatCurrency(t.amount)}
                   </td>
-                  <td className="px-5 py-3.5 text-right text-slate-300 font-semibold tabular-nums">
+                  <td className="text-right text-slate-800 font-semibold font-mono">
                     {formatCurrency(t.runningBalance)}
                   </td>
                   {isOwnerOrManager && (
-                    <td className="px-5 py-3.5 text-center">
+                    <td className="text-center">
                       <button
                         onClick={() => handleDeleteTransaction(t.id)}
-                        className="rounded-lg p-1.5 text-slate-455 hover:bg-slate-800 hover:text-red-400 transition-colors"
+                        className="rounded-lg p-1.5 text-muted hover:bg-slate-100 hover:text-error transition-colors"
                         title="Delete transaction (reverses balance)"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -391,9 +391,9 @@ export function Banks() {
             </tbody>
           </table>
         ) : (
-          <div className="flex flex-col items-center justify-center p-16 text-slate-500 space-y-3">
-            <Building2 className="h-10 w-10 text-slate-650" />
-            <h4 className="text-slate-350 font-semibold">No transactions found</h4>
+          <div className="flex flex-col items-center justify-center p-16 text-muted space-y-3">
+            <Building2 className="h-10 w-10 text-slate-400" />
+            <h4 className="text-slate-750 font-semibold">No transactions found</h4>
             <p className="text-xs">Record deposits, withdrawals, or transfers to track bank activity.</p>
           </div>
         )}
@@ -401,11 +401,11 @@ export function Banks() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex justify-between items-center bg-slate-900/20 border border-slate-850 p-4 rounded-xl">
-          <span className="text-xs text-slate-450">{totalRecords} transactions found</span>
+        <div className="card flex justify-between items-center p-4">
+          <span className="text-xs text-muted">{totalRecords} transactions found</span>
           <div className="flex items-center gap-2">
             <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="btn btn-secondary btn-sm">Previous</button>
-            <span className="text-xs text-slate-300 px-2 font-medium">Page {page} of {totalPages}</span>
+            <span className="text-xs text-slate-800 px-2 font-medium">Page {page} of {totalPages}</span>
             <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} className="btn btn-secondary btn-sm">Next</button>
           </div>
         </div>
