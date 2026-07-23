@@ -100,8 +100,14 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
   const openingCash   = Number(watched.openingCash) || 0;
   const cashSales     = Number(watched.cashSales) || 0;
   const closingCash   = Number(watched.closingCash) || 0;
-  const expectedClosing = openingCash + cashSales;
+  const totalExpenses = Number(watched.totalExpenses) || 0;
+  const expectedClosing = openingCash + cashSales - totalExpenses;
   const difference    = closingCash - expectedClosing;
+
+  useEffect(() => {
+    const calculatedSales = Math.max(0, closingCash + totalExpenses - openingCash);
+    setValue('cashSales', calculatedSales);
+  }, [closingCash, totalExpenses, openingCash, setValue]);
 
   useEffect(() => {
     if (!isEdit && watched.date) {
@@ -110,7 +116,7 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         .then(({ data }) => {
           if (data.success) {
             if (data.data.isNew) {
-              setValue('openingCash', Number(data.data.suggestedOpeningCash));
+              setValue('openingCash', 0);
             } else {
               setError(`An entry already exists for ${watched.date}. Close this and edit the existing entry.`);
             }
@@ -193,8 +199,8 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         Receipts & Income
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-        <Field label="Cash Sales" icon={Banknote} iconColor="#10b981" error={errors.cashSales?.message}>
-          <input type="number" step="0.01" {...regWithFocus('cashSales', register('cashSales'))} />
+        <Field label="Cash in Drawer" icon={PiggyBank} iconColor="#f59e0b" error={errors.closingCash?.message}>
+          <input type="number" step="0.01" {...regWithFocus('closingCash', register('closingCash'))} />
         </Field>
         <Field label="UPI Receipts" icon={CreditCard} iconColor="#3b82f6" error={errors.upiReceipts?.message}>
           <input type="number" step="0.01" {...regWithFocus('upiReceipts', register('upiReceipts'))} />
@@ -237,10 +243,16 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
           <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Calculated automatically</div>
         </div>
 
-        {/* Actual drawer */}
-        <Field label="Actual Cash (Drawer)" icon={PiggyBank} iconColor="#f59e0b" error={errors.closingCash?.message}>
-          <input type="number" step="0.01" {...regWithFocus('closingCash', register('closingCash'))} />
-        </Field>
+        {/* Auto Cash Sales */}
+        <div>
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+            Calculated Cash Sales
+          </div>
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
+            ₹{cashSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Drawer Cash + Expense - Opening</div>
+        </div>
       </div>
 
       {/* Difference badge */}

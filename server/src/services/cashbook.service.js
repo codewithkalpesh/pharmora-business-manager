@@ -317,11 +317,21 @@ class CashBookService {
       }
     });
 
+    // 3. Fetch borrowed money repayments for this user on this day
+    const repayments = await prisma.borrowedRepayment.findMany({
+      where: {
+        createdById: userId,
+        repaymentDate: { gte: startOfDay, lte: endOfDay }
+      }
+    });
+
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0) + 
-                          payments.reduce((sum, p) => sum + Number(p.amount), 0);
+                          payments.reduce((sum, p) => sum + Number(p.amount), 0) +
+                          repayments.reduce((sum, r) => sum + Number(r.amount), 0);
 
     const cashExpenses = expenses.filter(e => e.paymentMode === 'CASH').reduce((sum, e) => sum + Number(e.amount), 0) +
-                         payments.filter(p => p.paymentMode === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0);
+                         payments.filter(p => p.paymentMode === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0) +
+                         repayments.filter(r => r.paymentMode === 'CASH').reduce((sum, r) => sum + Number(r.amount), 0);
 
     // 3. Find cashbook entry
     let cashBook = await prisma.cashBook.findFirst({

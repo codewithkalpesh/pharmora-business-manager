@@ -33,6 +33,13 @@ class BorrowedService {
 
     const item = await borrowedRepository.create(payload);
 
+    // Sync to CashBook or Bank Account
+    if (item.paymentMode === 'CASH') {
+      await this._syncBorrowedToCashBook(item);
+    } else {
+      await this._syncBorrowedToBank(item);
+    }
+
     // Create a reminder notification if targetDate is provided
     if (item.targetDate) {
       await this._createOrUpdateReminderNotification(item, userId);
@@ -151,6 +158,10 @@ class BorrowedService {
       throw new ApiError(403, 'Access denied.');
     }
 
+    const oldPaymentMode = existing.paymentMode;
+    const oldAmount = Number(existing.borrowedAmount);
+    const oldDate = existing.borrowDate;
+
     const updateData = {};
     if (data.personName !== undefined) updateData.personName = data.personName.trim();
     if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
@@ -159,6 +170,7 @@ class BorrowedService {
     if (data.borrowDate !== undefined) updateData.borrowDate = new Date(data.borrowDate);
     if (data.targetDate !== undefined) updateData.targetDate = data.targetDate ? new Date(data.targetDate) : null;
     if (data.targetAmount !== undefined) updateData.targetAmount = Number(data.targetAmount);
+    if (data.borrowedAmount !== undefined) updateData.borrowedAmount = Number(data.borrowedAmount);
 
     // Recalculate status
     const currentPaid = Number(existing.paidAmount);
@@ -174,6 +186,19 @@ class BorrowedService {
 
     const updated = await borrowedRepository.update(id, updateData);
 
+    // Sync updates to CashBook/Bank Account
+    if (oldPaymentMode === 'CASH') {
+      await this._cleanupBorrowedFromCashBook({ ...existing, borrowedAmount: oldAmount, borrowDate: oldDate });
+    } else {
+      await this._cleanupBorrowedBankSync({ id, paymentMode: oldPaymentMode });
+    }
+
+    if (updated.paymentMode === 'CASH') {
+      await this._syncBorrowedToCashBook(updated);
+    } else {
+      await this._syncBorrowedToBank(updated);
+    }
+
     if (updated.targetDate) {
       await this._createOrUpdateReminderNotification(updated, userId);
     }
@@ -188,6 +213,13 @@ class BorrowedService {
     }
     if (existing.createdById !== userId) {
       throw new ApiError(403, 'Access denied.');
+    }
+
+    // Clean up sync
+    if (existing.paymentMode === 'CASH') {
+      await this._cleanupBorrowedFromCashBook(existing);
+    } else {
+      await this._cleanupBorrowedBankSync(existing);
     }
 
     return borrowedRepository.delete(id);
@@ -235,6 +267,15 @@ class BorrowedService {
       status: newStatus,
     });
 
+    // Sync to Bank if not CASH
+    if (repayment.paymentMode !== 'CASH') {
+      await this._syncRepaymentToBank(repayment, userId);
+    }
+
+    // Recalculate CashBook daily totalExpenses and cashExpenses
+    const cashBookService = require('./cashbook.service');
+    await cashBookService.syncTotalExpenses(userId, repayment.repaymentDate);
+
     const remainingBalance = Math.max(0, target - updatedPaid);
 
     // Group Link Broadcast
@@ -266,6 +307,9 @@ class BorrowedService {
     const borrowedId = repayment.borrowedMoneyId;
     const borrowed = await borrowedRepository.findById(borrowedId);
 
+    const repaymentDate = repayment.repaymentDate;
+    const paymentMode = repayment.paymentMode;
+
     await borrowedRepository.deleteRepayment(repaymentId);
 
     if (borrowed) {
@@ -280,6 +324,15 @@ class BorrowedService {
         status: newStatus,
       });
     }
+
+    // Clean up bank sync
+    if (paymentMode !== 'CASH') {
+      await this._cleanupRepaymentBankSync(repayment);
+    }
+
+    // Recalculate CashBook daily totalExpenses and cashExpenses
+    const cashBookService = require('./cashbook.service');
+    await cashBookService.syncTotalExpenses(userId, repaymentDate);
 
     return { message: 'Repayment deleted successfully.' };
   }
@@ -339,6 +392,203 @@ class BorrowedService {
           link: '/borrowed',
         },
       });
+    }
+  }
+
+  // ─── Bank & CashBook Sync Helpers ───────────────────────────────────────────
+
+  async _syncBorrowedToCashBook(item) {
+    const prisma = require('../config/prisma');
+    const borrowDate = new Date(item.borrowDate);
+    const startOfDay = new Date(borrowDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(borrowDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    let cashBook = await prisma.cashBook.findFirst({
+      where: {
+        date: { gte: startOfDay, lte: endOfDay },
+        createdById: item.createdById,
+      },
+    });
+
+    const amt = Number(item.borrowedAmount);
+    const mode = item.paymentMode || 'CASH';
+
+    if (cashBook) {
+      const field = mode === 'UPI' ? 'upiReceipts' : mode === 'CARD' ? 'cardReceipts' : 'otherIncome';
+      const newReceipts = Number(cashBook[field]) + amt;
+
+      const newSales = Number(cashBook.cashSales);
+      const newUpi = mode === 'UPI' ? newReceipts : Number(cashBook.upiReceipts);
+      const newCard = mode === 'CARD' ? newReceipts : Number(cashBook.cardReceipts);
+      const newOther = field === 'otherIncome' ? newReceipts : Number(cashBook.otherIncome);
+
+      const expectedClosing = Number(cashBook.openingCash) + newSales + newUpi + newCard + newOther - Number(cashBook.totalExpenses) - Number(cashBook.bankDeposit);
+      const newDifference = Number(cashBook.closingCash) - expectedClosing;
+
+      const updateData = { cashDifference: newDifference };
+      updateData[field] = newReceipts;
+
+      const updated = await prisma.cashBook.update({
+        where: { id: cashBook.id },
+        data: updateData,
+      });
+
+      if (mode === 'UPI') {
+        const cashBookService = require('./cashbook.service');
+        await cashBookService._syncUpiToBank(updated);
+      }
+    } else {
+      const created = await prisma.cashBook.create({
+        data: {
+          date: startOfDay,
+          openingCash: 0,
+          cashSales: 0,
+          upiReceipts: mode === 'UPI' ? amt : 0,
+          cardReceipts: mode === 'CARD' ? amt : 0,
+          otherIncome: (mode !== 'UPI' && mode !== 'CARD') ? amt : 0,
+          totalExpenses: 0,
+          bankDeposit: 0,
+          closingCash: (mode !== 'UPI' && mode !== 'CARD') ? amt : 0,
+          cashDifference: 0,
+          notes: `Auto-created from borrowed money record (${item.personName})`,
+          createdById: item.createdById,
+        },
+      });
+
+      if (mode === 'UPI' && amt > 0) {
+        const cashBookService = require('./cashbook.service');
+        await cashBookService._syncUpiToBank(created);
+      }
+    }
+  }
+
+  async _cleanupBorrowedFromCashBook(item) {
+    if (!item) return;
+    const prisma = require('../config/prisma');
+    const borrowDate = new Date(item.borrowDate);
+    const startOfDay = new Date(borrowDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(borrowDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const cashBook = await prisma.cashBook.findFirst({
+      where: {
+        date: { gte: startOfDay, lte: endOfDay },
+        createdById: item.createdById,
+      },
+    });
+
+    if (cashBook) {
+      const amt = Number(item.borrowedAmount);
+      const mode = item.paymentMode || 'CASH';
+      const field = mode === 'UPI' ? 'upiReceipts' : mode === 'CARD' ? 'cardReceipts' : 'otherIncome';
+      const newReceipts = Math.max(0, Number(cashBook[field]) - amt);
+
+      const updateData = {};
+      updateData[field] = newReceipts;
+
+      const newSales = Number(cashBook.cashSales);
+      const newUpi = mode === 'UPI' ? newReceipts : Number(cashBook.upiReceipts);
+      const newCard = mode === 'CARD' ? newReceipts : Number(cashBook.cardReceipts);
+      const newOther = field === 'otherIncome' ? newReceipts : Number(cashBook.otherIncome);
+
+      const expectedClosing = Number(cashBook.openingCash) + newSales + newUpi + newCard + newOther - Number(cashBook.totalExpenses) - Number(cashBook.bankDeposit);
+      updateData.cashDifference = Number(cashBook.closingCash) - expectedClosing;
+
+      const updated = await prisma.cashBook.update({
+        where: { id: cashBook.id },
+        data: updateData,
+      });
+
+      if (mode === 'UPI') {
+        const cashBookService = require('./cashbook.service');
+        await cashBookService._syncUpiToBank(updated);
+      }
+    }
+  }
+
+  async _syncBorrowedToBank(item) {
+    const bankRepository = require('../repositories/bank.repository');
+    const cashBookService = require('./cashbook.service');
+
+    const amount = Number(item.borrowedAmount);
+    const tag = `[BorrowedMoney:${item.id}]`;
+    const description = `Borrowed from ${item.personName} ${tag}`;
+
+    const primaryBank = await cashBookService._findPrimaryBankAccount(item.createdById);
+    if (!primaryBank) return;
+
+    const newBalance = Number(primaryBank.currentBalance) + amount;
+    await prisma.bankTransaction.create({
+      data: {
+        accountId: primaryBank.id,
+        type: 'DEPOSIT',
+        date: item.borrowDate || new Date(),
+        amount,
+        description,
+        runningBalance: newBalance,
+        createdById: item.createdById,
+      },
+    });
+    await bankRepository.adjustBalance(primaryBank.id, amount);
+  }
+
+  async _cleanupBorrowedBankSync(item) {
+    const bankRepository = require('../repositories/bank.repository');
+    const tag = `[BorrowedMoney:${item.id}]`;
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      await bankRepository.adjustBalance(existingTxn.accountId, -Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
+    }
+  }
+
+  async _syncRepaymentToBank(repayment, userId) {
+    const bankRepository = require('../repositories/bank.repository');
+    const cashBookService = require('./cashbook.service');
+
+    const amount = Number(repayment.amount);
+    const tag = `[Repayment:${repayment.id}]`;
+    
+    const borrowed = await prisma.borrowedMoney.findUnique({
+      where: { id: repayment.borrowedMoneyId }
+    });
+    const lenderName = borrowed ? borrowed.personName : 'Lender';
+    const description = `Repayment to ${lenderName} ${tag}`;
+
+    const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+    if (!primaryBank) return;
+
+    const newBalance = Number(primaryBank.currentBalance) - amount;
+    await prisma.bankTransaction.create({
+      data: {
+        accountId: primaryBank.id,
+        type: 'WITHDRAWAL',
+        date: repayment.repaymentDate || new Date(),
+        amount,
+        description,
+        runningBalance: newBalance,
+        createdById: userId,
+      },
+    });
+    await bankRepository.adjustBalance(primaryBank.id, -amount);
+  }
+
+  async _cleanupRepaymentBankSync(repayment) {
+    const bankRepository = require('../repositories/bank.repository');
+    const tag = `[Repayment:${repayment.id}]`;
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      await bankRepository.adjustBalance(existingTxn.accountId, Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
     }
   }
 }
