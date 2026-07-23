@@ -362,6 +362,7 @@ model RecurringTransaction {
   type          TransactionType
   frequency     RecurringFrequency
   action        RecurringAction    @default(REMINDER_ONLY)
+  paymentMode   PaymentMode        @default(CASH)
   startDate     DateTime           @db.Date
   endDate       DateTime?          @db.Date
   nextDueDate   DateTime           @db.Date

@@ -37,6 +37,7 @@ class RecurringService {
       type: data.type,
       frequency: data.frequency,
       action: data.action || 'REMINDER_ONLY',
+      paymentMode: data.paymentMode || 'CASH',
       startDate: startDateObj,
       endDate: data.endDate ? new Date(data.endDate) : null,
       nextDueDate: startDateObj, // Start date is first due date
@@ -114,6 +115,7 @@ class RecurringService {
     if (data.action !== undefined) payload.action = data.action;
     if (data.isActive !== undefined) payload.isActive = data.isActive;
     if (data.customDays !== undefined) payload.customDays = data.customDays || null;
+    if (data.paymentMode !== undefined) payload.paymentMode = data.paymentMode;
 
     if (data.startDate !== undefined) {
       payload.startDate = new Date(data.startDate);
@@ -164,18 +166,27 @@ class RecurringService {
         category = await prisma.expenseCategory.findFirst();
       }
 
-      await prisma.expense.create({
+      const expense = await prisma.expense.create({
         data: {
           date: executionDate,
           categoryId: category.id,
           description: `[RECURRING] ${recurring.title}`,
           amount: recurring.amount,
-          paymentMode: 'OTHER',
+          paymentMode: recurring.paymentMode || 'CASH',
           isRecurring: true,
           notes: recurring.description || 'Executed from recurring schedule',
           createdById: recurring.createdById,
         },
       });
+
+      // Sync payment withdrawal to primary bank account if not CASH
+      if (expense.paymentMode !== 'CASH') {
+        const primaryBank = await cashBookService._findPrimaryBankAccount(recurring.createdById);
+        if (primaryBank) {
+          const expenseService = require('./expense.service');
+          await expenseService._syncExpenseToBank(expense, primaryBank.id);
+        }
+      }
 
       // Sync recurring expense to CashBook entry
       await cashBookService.syncTotalExpenses(recurring.createdById, executionDate);
@@ -184,26 +195,35 @@ class RecurringService {
         where: { date: executionDate, createdById: recurring.createdById },
       });
 
+      const amt = Number(recurring.amount);
+      const mode = recurring.paymentMode || 'CASH';
+      const field = mode === 'UPI' ? 'upiReceipts' : mode === 'CARD' ? 'cardReceipts' : mode === 'CASH' ? 'cashSales' : 'otherIncome';
+
       if (existingCashBook) {
-        const currentOther = Number(existingCashBook.otherIncome);
-        const amt = Number(recurring.amount);
-        const newOther = currentOther + amt;
+        const currentFieldVal = Number(existingCashBook[field]) || 0;
+        const newFieldVal = currentFieldVal + amt;
 
-        const opening = Number(existingCashBook.openingCash);
-        const sales = Number(existingCashBook.cashSales);
-        const upi = Number(existingCashBook.upiReceipts);
-        const card = Number(existingCashBook.cardReceipts);
-        const expenses = Number(existingCashBook.totalExpenses);
-        const deposit = Number(existingCashBook.bankDeposit);
-        const newClosing = opening + sales + upi + card + newOther - expenses - deposit;
+        const newSales = mode === 'CASH' ? newFieldVal : Number(existingCashBook.cashSales);
+        const newUpi = mode === 'UPI' ? newFieldVal : Number(existingCashBook.upiReceipts);
+        const newCard = mode === 'CARD' ? newFieldVal : Number(existingCashBook.cardReceipts);
+        const newOther = mode !== 'CASH' && mode !== 'UPI' && mode !== 'CARD' ? (Number(existingCashBook.otherIncome) + amt) : Number(existingCashBook.otherIncome);
 
-        await prisma.cashBook.update({
+        const expectedClosing = Number(existingCashBook.openingCash) + newSales + newUpi + newCard + newOther - Number(existingCashBook.totalExpenses) - Number(existingCashBook.bankDeposit);
+        const newDifference = Number(existingCashBook.closingCash) - expectedClosing;
+
+        const updateData = {
+          cashDifference: newDifference,
+        };
+        updateData[field] = newFieldVal;
+
+        const updated = await prisma.cashBook.update({
           where: { id: existingCashBook.id },
-          data: {
-            otherIncome: newOther,
-            closingCash: newClosing,
-          },
+          data: updateData,
         });
+
+        if (mode === 'UPI') {
+          await cashBookService._syncUpiToBank(updated);
+        }
       } else {
         const prevEntry = await prisma.cashBook.findFirst({
           where: { date: { lt: executionDate }, createdById: recurring.createdById },
@@ -211,18 +231,29 @@ class RecurringService {
         });
 
         const opening = prevEntry ? Number(prevEntry.closingCash) : 0;
-        const amt = Number(recurring.amount);
 
-        await prisma.cashBook.create({
-          data: {
-            date: executionDate,
-            openingCash: opening,
-            otherIncome: amt,
-            closingCash: opening + amt,
-            notes: `Auto-created from recurring income: ${recurring.title}`,
-            createdById: recurring.createdById,
-          },
+        const createData = {
+          date: executionDate,
+          openingCash: opening,
+          cashSales: mode === 'CASH' ? amt : 0,
+          upiReceipts: mode === 'UPI' ? amt : 0,
+          cardReceipts: mode === 'CARD' ? amt : 0,
+          otherIncome: mode !== 'CASH' && mode !== 'UPI' && mode !== 'CARD' ? amt : 0,
+          totalExpenses: 0,
+          bankDeposit: 0,
+          closingCash: mode === 'CASH' ? opening + amt : opening,
+          cashDifference: 0,
+          notes: `Auto-created from recurring income: ${recurring.title}`,
+          createdById: recurring.createdById,
+        };
+
+        const created = await prisma.cashBook.create({
+          data: createData,
         });
+
+        if (mode === 'UPI') {
+          await cashBookService._syncUpiToBank(created);
+        }
       }
     }
 

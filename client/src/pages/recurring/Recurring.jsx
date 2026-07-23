@@ -318,6 +318,9 @@ export function Recurring() {
                       <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded-full font-medium">
                         {s.action === 'AUTO_DRAFT' ? 'Auto Draft' : 'Reminder'}
                       </span>
+                      <span className="text-[10px] bg-slate-800 text-emerald-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">
+                        💵 {s.paymentMode || 'CASH'}
+                      </span>
                     </div>
                     <h4 className="text-base font-bold text-slate-100 mt-2.5">{s.title}</h4>
                   </div>

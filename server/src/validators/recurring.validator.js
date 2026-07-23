@@ -18,6 +18,7 @@ const recurringTransactionSchema = z
     type: z.enum(['INCOME', 'EXPENSE']),
     frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM']),
     action: z.enum(['REMINDER_ONLY', 'AUTO_DRAFT']).optional().default('REMINDER_ONLY'),
+    paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).optional().default('CASH'),
     startDate: z.string().min(1, 'Start date is required'),
     endDate: z.preprocess(
       (val) => (val === '' || val === undefined || val === 'null' ? null : val),

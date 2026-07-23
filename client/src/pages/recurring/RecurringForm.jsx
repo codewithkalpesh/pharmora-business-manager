@@ -15,6 +15,7 @@ const schema = z.object({
   type: z.enum(['INCOME', 'EXPENSE']),
   frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM']),
   action: z.enum(['REMINDER_ONLY', 'AUTO_DRAFT']),
+  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be YYYY-MM-DD'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD').optional().nullable().or(z.literal('')),
   customDays: z.string().optional().nullable().or(z.literal('')),
@@ -54,6 +55,7 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
       type: 'EXPENSE',
       frequency: 'MONTHLY',
       action: 'REMINDER_ONLY',
+      paymentMode: 'CASH',
       startDate: today(),
       endDate: '',
       customDays: '',
@@ -72,6 +74,7 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
         type: schedule.type || 'EXPENSE',
         frequency: schedule.frequency || 'MONTHLY',
         action: schedule.action || 'REMINDER_ONLY',
+        paymentMode: schedule.paymentMode || 'CASH',
         startDate: schedule.startDate ? new Date(schedule.startDate).toISOString().split('T')[0] : today(),
         endDate: schedule.endDate ? new Date(schedule.endDate).toISOString().split('T')[0] : '',
         customDays: schedule.customDays ? String(schedule.customDays) : '',
@@ -85,6 +88,7 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
         type: 'EXPENSE',
         frequency: 'MONTHLY',
         action: 'REMINDER_ONLY',
+        paymentMode: 'CASH',
         startDate: today(),
         endDate: '',
         customDays: '',
@@ -105,6 +109,7 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
         type: data.type,
         frequency: data.frequency,
         action: data.action,
+        paymentMode: data.paymentMode,
         startDate: data.startDate,
         endDate: data.endDate || null,
         customDays: data.frequency === 'CUSTOM' ? parseInt(data.customDays, 10) : null,
@@ -157,7 +162,7 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="input-group">
             <label className="input-label">Transaction Type *</label>
             <select {...register('type')} className="input">
@@ -167,10 +172,22 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
           </div>
 
           <div className="input-group">
+            <label className="input-label">Payment Mode *</label>
+            <select {...register('paymentMode')} className="input">
+              <option value="CASH">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="CARD">Card</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </div>
+
+          <div className="input-group">
             <label className="input-label">Execution Action *</label>
             <select {...register('action')} className="input">
-              <option value="REMINDER_ONLY">Reminder Notification Only</option>
-              <option value="AUTO_DRAFT">Auto Draft (Record Entry Automatically)</option>
+              <option value="REMINDER_ONLY">Reminder Only</option>
+              <option value="AUTO_DRAFT">Auto Draft (Record)</option>
             </select>
           </div>
         </div>
