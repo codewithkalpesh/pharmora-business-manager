@@ -247,6 +247,8 @@ class PaymentService {
         data: { paidAmount: billPaid, status },
       });
     }
+  }
+
   async _syncPaymentToBank(payment, userId) {
     const prisma = require('../config/prisma');
     const bankRepository = require('../repositories/bank.repository');
