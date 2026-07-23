@@ -284,11 +284,26 @@ const getKPIs = async (userId) => {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 10);
 
+  let cashInHand = 0;
+  if (latestCashBook) {
+    const closing = Number(latestCashBook.closingCash) || 0;
+    if (closing > 0) {
+      cashInHand = closing;
+    } else {
+      const opening = Number(latestCashBook.openingCash) || 0;
+      const sales = Number(latestCashBook.cashSales) || 0;
+      const other = Number(latestCashBook.otherIncome) || 0;
+      const expenses = Number(latestCashBook.totalExpenses) || 0;
+      const deposit = Number(latestCashBook.bankDeposit) || 0;
+      cashInHand = opening + sales + other - expenses - deposit;
+    }
+  }
+
   return {
     kpis: {
       todaySales,
       todayExpenses: todayExp,
-      cashInHand: Number(latestCashBook?.closingCash || 0),
+      cashInHand,
       bankBalance: totalBankBalance,
       distributorPending: distributorPendingAmount,
       customerCredit: customerOutstandingAmount,
