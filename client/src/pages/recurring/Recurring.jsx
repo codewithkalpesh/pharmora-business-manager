@@ -151,6 +151,7 @@ export function Recurring() {
 
   const upcoming5Days = schedules.filter((s) => {
     if (!s.isActive) return false;
+    if (s.action === 'AUTO_DRAFT') return false;
     const due = new Date(s.nextDueDate);
     const diffDays = Math.ceil((due - Date.now()) / (1000 * 60 * 60 * 24));
     return diffDays <= 5;

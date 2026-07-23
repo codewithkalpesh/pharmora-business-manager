@@ -276,6 +276,36 @@ class RecurringService {
     let processedCount = 0;
 
     for (const schedule of dueSchedules) {
+      if (schedule.action === 'REMINDER_ONLY') {
+        // Send a daily notification reminder for due schedules, but do NOT execute or advance automatically
+        const startOfDay = new Date(today);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(today);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const existingNotif = await prisma.notification.findFirst({
+          where: {
+            userId: schedule.createdById,
+            title: `Due: ${schedule.title}`,
+            createdAt: { gte: startOfDay, lte: endOfDay },
+          },
+        });
+
+        if (!existingNotif) {
+          await prisma.notification.create({
+            data: {
+              userId: schedule.createdById,
+              title: `Due: ${schedule.title}`,
+              message: `Reminder: Recurring ${schedule.type.toLowerCase()} of ₹${Number(schedule.amount).toLocaleString('en-IN')} is due on ${new Date(schedule.nextDueDate).toLocaleDateString('en-IN')}.`,
+              type: 'WARNING',
+              link: '/recurring',
+            },
+          });
+        }
+        continue;
+      }
+
+      // Execute AUTO_DRAFT schedules automatically
       let currentDue = new Date(schedule.nextDueDate);
       let isStillActive = schedule.isActive;
 

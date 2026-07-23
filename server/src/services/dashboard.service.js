@@ -104,6 +104,7 @@ const getKPIs = async (userId) => {
     prisma.recurringTransaction.findMany({
       where: {
         isActive: true,
+        action: 'REMINDER_ONLY',
         createdById: userId,
         nextDueDate: { lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
       },
