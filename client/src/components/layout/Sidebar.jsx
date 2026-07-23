@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { label: 'Purchases',      icon: ShoppingCart,    to: '/purchases' },
   { label: 'Distributors',   icon: Truck,           to: '/distributors' },
   { label: 'Payments',       icon: CreditCard,      to: '/payments' },
+  { label: 'Customers',      icon: Users,           to: '/customers' },
   { label: 'Borrowed Money', icon: HandCoins,       to: '/borrowed' },
   { label: 'Banks',          icon: Building2,       to: '/banks' },
   { label: 'Recurring',      icon: RefreshCw,       to: '/recurring' },

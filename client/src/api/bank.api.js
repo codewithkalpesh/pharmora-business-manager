@@ -5,6 +5,7 @@ export const bankApi = {
   createAccount: (data) => api.post('/banks/accounts', data),
   getAccounts: (params) => api.get('/banks/accounts', { params }),
   updateAccount: (id, data) => api.put(`/banks/accounts/${id}`, data),
+  setPrimaryAccount: (id) => api.patch(`/banks/accounts/${id}/primary`),
   deleteAccount: (id) => api.delete(`/banks/accounts/${id}`),
 
   // Transactions

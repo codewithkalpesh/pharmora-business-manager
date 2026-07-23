@@ -13,6 +13,7 @@ router.get('/stats', bankController.getBankStats.bind(bankController));
 router.get('/accounts', bankController.getAccounts.bind(bankController));
 router.post('/accounts', requireRole(['OWNER', 'MANAGER']), bankController.createAccount.bind(bankController));
 router.put('/accounts/:id', requireRole(['OWNER', 'MANAGER']), bankController.updateAccount.bind(bankController));
+router.patch('/accounts/:id/primary', requireRole(['OWNER', 'MANAGER']), bankController.setPrimaryAccount.bind(bankController));
 router.delete('/accounts/:id', requireRole(['OWNER']), bankController.deleteAccount.bind(bankController));
 
 // Transaction CRUD

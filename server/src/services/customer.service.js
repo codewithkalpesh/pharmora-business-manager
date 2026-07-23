@@ -433,12 +433,15 @@ class CustomerService {
       const updateData = { cashDifference: newDifference };
       updateData[field] = newReceipts;
 
-      await prisma.cashBook.update({
+      const updated = await prisma.cashBook.update({
         where: { id: cashBook.id },
         data: updateData,
       });
+
+      const cashBookService = require('./cashbook.service');
+      await cashBookService._syncUpiToBank(updated);
     } else {
-      await prisma.cashBook.create({
+      const created = await prisma.cashBook.create({
         data: {
           date: startOfDay,
           openingCash: 0,
@@ -454,6 +457,11 @@ class CustomerService {
           createdById: collection.createdById,
         },
       });
+
+      if (mode === 'UPI' && amt > 0) {
+        const cashBookService = require('./cashbook.service');
+        await cashBookService._syncUpiToBank(created);
+      }
     }
   }
 
@@ -482,10 +490,13 @@ class CustomerService {
       const updateData = {};
       updateData[field] = newReceipts;
 
-      await prisma.cashBook.update({
+      const updated = await prisma.cashBook.update({
         where: { id: cashBook.id },
         data: updateData,
       });
+
+      const cashBookService = require('./cashbook.service');
+      await cashBookService._syncUpiToBank(updated);
     }
   }
 }

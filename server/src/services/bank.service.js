@@ -10,6 +10,12 @@ class BankService {
       throw new ApiError(400, `Account '${data.accountName}' at '${data.bankName}' already exists.`);
     }
 
+    const prisma = require('../config/prisma');
+
+    // Automatically make first account primary, else use checked status
+    const count = await prisma.bankAccount.count({ where: { createdById: userId } });
+    const isPrimary = count === 0 ? true : !!data.isPrimary;
+
     const payload = {
       bankName: data.bankName,
       accountName: data.accountName,
@@ -17,8 +23,19 @@ class BankService {
       ifscCode: data.ifscCode || null,
       openingBalance: data.openingBalance || 0,
       currentBalance: data.openingBalance || 0,
+      isPrimary,
       createdById: userId,
     };
+
+    if (isPrimary) {
+      return prisma.$transaction(async (tx) => {
+        await tx.bankAccount.updateMany({
+          where: { createdById: userId },
+          data: { isPrimary: false },
+        });
+        return tx.bankAccount.create({ data: payload });
+      });
+    }
 
     return bankRepository.createAccount(payload);
   }
@@ -40,7 +57,10 @@ class BankService {
       where.isActive = query.isActive === 'true';
     }
 
-    const orderBy = { bankName: 'asc' };
+    const orderBy = [
+      { isPrimary: 'desc' },
+      { bankName: 'asc' }
+    ];
 
     const { accounts, total } = await bankRepository.findAccounts({
       skip,
@@ -55,26 +75,83 @@ class BankService {
     };
   }
 
-  async updateAccount(id, data) {
+  async updateAccount(id, data, userId) {
     const existing = await bankRepository.findAccountById(id);
     if (!existing) throw new ApiError(404, 'Bank account not found.');
+    if (existing.createdById && existing.createdById !== userId) {
+      throw new ApiError(403, 'You do not have permission to edit this bank account.');
+    }
 
-    // Only allow editing metadata, not balance directly
     const payload = {};
     if (data.bankName !== undefined) payload.bankName = data.bankName;
     if (data.accountName !== undefined) payload.accountName = data.accountName;
     if (data.accountNumber !== undefined) payload.accountNumber = data.accountNumber || null;
     if (data.ifscCode !== undefined) payload.ifscCode = data.ifscCode || null;
+    if (data.isPrimary !== undefined) payload.isPrimary = !!data.isPrimary;
+
+    if (payload.isPrimary) {
+      const prisma = require('../config/prisma');
+      return prisma.$transaction(async (tx) => {
+        await tx.bankAccount.updateMany({
+          where: { createdById: userId },
+          data: { isPrimary: false },
+        });
+        return tx.bankAccount.update({ where: { id }, data: payload });
+      });
+    }
 
     return bankRepository.updateAccount(id, payload);
   }
 
-  async deleteAccount(id) {
+  async setPrimaryAccount(id, userId) {
+    const prisma = require('../config/prisma');
     const existing = await bankRepository.findAccountById(id);
     if (!existing) throw new ApiError(404, 'Bank account not found.');
+    if (existing.createdById && existing.createdById !== userId) {
+      throw new ApiError(403, 'You do not have permission to modify this bank account.');
+    }
+
+    await prisma.$transaction([
+      prisma.bankAccount.updateMany({
+        where: { createdById: userId },
+        data: { isPrimary: false },
+      }),
+      prisma.bankAccount.update({
+        where: { id },
+        data: { isPrimary: true },
+      }),
+    ]);
+
+    return bankRepository.findAccountById(id);
+  }
+
+  async deleteAccount(id, userId) {
+    const existing = await bankRepository.findAccountById(id);
+    if (!existing) throw new ApiError(404, 'Bank account not found.');
+    if (existing.createdById && existing.createdById !== userId) {
+      throw new ApiError(403, 'You do not have permission to delete this bank account.');
+    }
+
+    const wasPrimary = existing.isPrimary;
 
     try {
-      return await bankRepository.deleteAccount(id);
+      const deleted = await bankRepository.deleteAccount(id);
+
+      if (wasPrimary) {
+        const prisma = require('../config/prisma');
+        const nextAccount = await prisma.bankAccount.findFirst({
+          where: { createdById: userId, isActive: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (nextAccount) {
+          await prisma.bankAccount.update({
+            where: { id: nextAccount.id },
+            data: { isPrimary: true },
+          });
+        }
+      }
+
+      return deleted;
     } catch (err) {
       throw new ApiError(400, 'Cannot delete account. There are transactions recorded against it.');
     }

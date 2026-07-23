@@ -14,6 +14,7 @@ const schema = z.object({
   openingBalance: z.string().refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) >= 0, {
     message: 'Opening balance must be zero or positive',
   }),
+  isPrimary: z.boolean().optional(),
 });
 
 export function BankAccountForm({ isOpen, onClose, onSuccess, account = null }) {
@@ -33,6 +34,7 @@ export function BankAccountForm({ isOpen, onClose, onSuccess, account = null }) 
       accountNumber: '',
       ifscCode: '',
       openingBalance: '0',
+      isPrimary: false,
     },
   });
 
@@ -44,6 +46,7 @@ export function BankAccountForm({ isOpen, onClose, onSuccess, account = null }) 
         accountNumber: account.accountNumber || '',
         ifscCode: account.ifscCode || '',
         openingBalance: String(account.openingBalance || 0),
+        isPrimary: account.isPrimary || false,
       });
     } else {
       reset({
@@ -52,6 +55,7 @@ export function BankAccountForm({ isOpen, onClose, onSuccess, account = null }) 
         accountNumber: '',
         ifscCode: '',
         openingBalance: '0',
+        isPrimary: false,
       });
     }
   }, [account, reset, isOpen]);
@@ -66,6 +70,7 @@ export function BankAccountForm({ isOpen, onClose, onSuccess, account = null }) 
         accountNumber: data.accountNumber || null,
         ifscCode: data.ifscCode || null,
         openingBalance: parseFloat(data.openingBalance),
+        isPrimary: !!data.isPrimary,
       };
 
       if (account) {
@@ -148,6 +153,18 @@ export function BankAccountForm({ isOpen, onClose, onSuccess, account = null }) 
             {errors.openingBalance && <p className="text-xs text-red-455 mt-1">{errors.openingBalance.message}</p>}
           </div>
         )}
+
+        <div className="flex items-center gap-2.5 py-2.5 bg-slate-900/10 border border-slate-800/40 rounded-xl px-4 mt-2">
+          <input
+            type="checkbox"
+            id="isPrimary"
+            {...register('isPrimary')}
+            className="h-4.5 w-4.5 rounded border-slate-800 bg-slate-950 text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
+          />
+          <label htmlFor="isPrimary" className="text-sm font-medium text-slate-350 cursor-pointer select-none">
+            Make this my Primary Bank Account
+          </label>
+        </div>
 
         <div className="flex justify-end space-x-3 pt-4 border-t border-slate-800">
           <button type="button" onClick={onClose} className="btn btn-secondary">Cancel</button>

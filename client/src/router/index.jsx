@@ -10,6 +10,7 @@ import { Expenses } from '../pages/expenses/Expenses';
 import { Purchases } from '../pages/purchases/Purchases';
 import { Distributors } from '../pages/purchases/Distributors';
 import { Payments } from '../pages/payments/Payments';
+import { Customers } from '../pages/customers/Customers';
 import { BorrowedMoney } from '../pages/borrowed/BorrowedMoney';
 import { Banks } from '../pages/banks/Banks';
 import { Recurring } from '../pages/recurring/Recurring';
@@ -51,6 +52,7 @@ export const router = createBrowserRouter([
       { path: 'purchases', element: <Purchases /> },
       { path: 'distributors', element: <Distributors /> },
       { path: 'payments', element: <Payments /> },
+      { path: 'customers', element: <Customers /> },
       { path: 'borrowed', element: <BorrowedMoney /> },
       { path: 'banks', element: <Banks /> },
       { path: 'recurring', element: <Recurring /> },

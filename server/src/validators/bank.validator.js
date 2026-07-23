@@ -6,6 +6,7 @@ const bankAccountSchema = z.object({
   accountNumber: z.string().max(30).optional().nullable(),
   ifscCode: z.string().max(20).optional().nullable(),
   openingBalance: z.number().nonnegative('Opening balance cannot be negative').default(0),
+  isPrimary: z.boolean().optional(),
 });
 
 const bankTransactionSchema = z.object({

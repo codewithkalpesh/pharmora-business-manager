@@ -180,18 +180,28 @@ class CashBookService {
     const baseWhere = { isActive: true };
     if (userId) baseWhere.createdById = userId;
 
-    // Try to find an account named "Primary" or "Main" (case-insensitive)
+    // 1. Try to find the account explicitly marked as primary
     let account = await prisma.bankAccount.findFirst({
       where: {
         ...baseWhere,
-        OR: [
-          { accountName: { contains: 'Primary', mode: 'insensitive' } },
-          { accountName: { contains: 'Main', mode: 'insensitive' } },
-        ],
+        isPrimary: true,
       },
     });
 
-    // Fall back to first active account
+    // 2. Fallback: Try to find an account named "Primary" or "Main" (case-insensitive)
+    if (!account) {
+      account = await prisma.bankAccount.findFirst({
+        where: {
+          ...baseWhere,
+          OR: [
+            { accountName: { contains: 'Primary', mode: 'insensitive' } },
+            { accountName: { contains: 'Main', mode: 'insensitive' } },
+          ],
+        },
+      });
+    }
+
+    // 3. Fallback: First active account
     if (!account) {
       account = await prisma.bankAccount.findFirst({
         where: baseWhere,

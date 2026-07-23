@@ -38,9 +38,19 @@ class ExpenseService {
 
     const expense = await expenseRepository.createExpense(payload);
 
-    // Sync payment withdrawal if a bank account is specified and paymentMode is not CASH
-    if (data.bankAccountId && data.paymentMode !== 'CASH') {
-      await this._syncExpenseToBank(expense, data.bankAccountId);
+    // Sync payment withdrawal if paymentMode is not CASH
+    if (data.paymentMode !== 'CASH') {
+      let targetBankAccountId = data.bankAccountId;
+      if (!targetBankAccountId) {
+        const cashBookService = require('./cashbook.service');
+        const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+        if (primaryBank) {
+          targetBankAccountId = primaryBank.id;
+        }
+      }
+      if (targetBankAccountId) {
+        await this._syncExpenseToBank(expense, targetBankAccountId);
+      }
     }
 
     // Sync to Recurring Transactions module if isRecurring is checked
@@ -155,9 +165,18 @@ class ExpenseService {
     if (data.paymentMode === 'CASH') {
       await this._cleanupExpenseBankSync(existing);
     } else {
-      const targetBankAccountId = data.bankAccountId || oldBankAccountId;
+      let targetBankAccountId = data.bankAccountId || oldBankAccountId;
+      if (!targetBankAccountId) {
+        const cashBookService = require('./cashbook.service');
+        const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+        if (primaryBank) {
+          targetBankAccountId = primaryBank.id;
+        }
+      }
       if (targetBankAccountId) {
         await this._syncExpenseToBank(updatedExpense, targetBankAccountId, oldAmount, oldBankAccountId);
+      } else {
+        await this._cleanupExpenseBankSync(existing);
       }
     }
 

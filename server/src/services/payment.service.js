@@ -38,6 +38,11 @@ class PaymentService {
 
     const payment = await paymentRepository.createPayment(payload);
 
+    // Sync payment withdrawal to primary bank account if not CASH
+    if (payment.paymentMode !== 'CASH') {
+      await this._syncPaymentToBank(payment, userId);
+    }
+
     // Recalculate all bill statuses for this distributor
     await this._recalcDistributorBills(data.distributorId);
 
@@ -112,6 +117,9 @@ class PaymentService {
 
     const distributorId = payment.distributorId;
     await paymentRepository.deletePayment(id);
+
+    // Clean up bank transaction
+    await this._cleanupPaymentBankSync(payment);
 
     // Sync CashBook totals for the date of deletion
     await cashBookService.syncTotalExpenses(payment.createdById, payment.paymentDate);
@@ -238,6 +246,67 @@ class PaymentService {
         where: { id: bill.id },
         data: { paidAmount: billPaid, status },
       });
+    }
+  async _syncPaymentToBank(payment, userId) {
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+    const cashBookService = require('./cashbook.service');
+
+    const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+    if (!primaryBank) return;
+
+    // Fetch distributor info for description
+    const distributor = await prisma.distributor.findUnique({
+      where: { id: payment.distributorId },
+    });
+
+    const tag = `[DistributorPayment:${payment.id}]`;
+    const description = `Distributor Payment (${distributor?.name || 'Supplier'}) ${tag}`;
+    const amount = Number(payment.amount);
+
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      const prevAmount = Number(existingTxn.amount);
+      const delta = amount - prevAmount;
+      if (delta !== 0) {
+        await prisma.bankTransaction.update({
+          where: { id: existingTxn.id },
+          data: { amount, description },
+        });
+        await bankRepository.adjustBalance(existingTxn.accountId, -delta);
+      }
+    } else {
+      const newBalance = Number(primaryBank.currentBalance) - amount;
+      await prisma.bankTransaction.create({
+        data: {
+          accountId: primaryBank.id,
+          type: 'WITHDRAWAL',
+          date: payment.paymentDate || new Date(),
+          amount,
+          description,
+          runningBalance: newBalance,
+          createdById: userId,
+        },
+      });
+      await bankRepository.adjustBalance(primaryBank.id, -amount);
+    }
+  }
+
+  async _cleanupPaymentBankSync(payment) {
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+
+    const tag = `[DistributorPayment:${payment.id}]`;
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      await bankRepository.adjustBalance(existingTxn.accountId, Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
     }
   }
 

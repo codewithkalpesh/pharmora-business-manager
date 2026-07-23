@@ -36,7 +36,16 @@ class BankController {
       if (!parsed.success) {
         return next(new ApiError(422, 'Validation failed', parsed.error.flatten().fieldErrors));
       }
-      const account = await bankService.updateAccount(req.params.id, parsed.data);
+      const account = await bankService.updateAccount(req.params.id, parsed.data, req.user.id);
+      return res.json({ success: true, data: account });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async setPrimaryAccount(req, res, next) {
+    try {
+      const account = await bankService.setPrimaryAccount(req.params.id, req.user.id);
       return res.json({ success: true, data: account });
     } catch (err) {
       next(err);
@@ -45,7 +54,7 @@ class BankController {
 
   async deleteAccount(req, res, next) {
     try {
-      await bankService.deleteAccount(req.params.id);
+      await bankService.deleteAccount(req.params.id, req.user.id);
       return res.json({ success: true, message: 'Bank account deleted successfully.' });
     } catch (err) {
       next(err);

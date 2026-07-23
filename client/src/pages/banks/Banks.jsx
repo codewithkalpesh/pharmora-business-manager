@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Building2, RefreshCw, Plus, ArrowDownLeft, ArrowUpRight,
-  ArrowLeftRight, Trash2, Edit, Search, CreditCard,
+  ArrowLeftRight, Trash2, Edit, Search, CreditCard, Star,
 } from 'lucide-react';
 import { PageHeader } from '../../components/common/PageHeader';
 import { bankApi } from '../../api/bank.api';
@@ -95,6 +95,15 @@ export function Banks() {
   const handleEditAccount = (account) => {
     setEditingAccount(account);
     setIsAccountModalOpen(true);
+  };
+
+  const handleSetPrimary = async (id) => {
+    try {
+      await bankApi.setPrimaryAccount(id);
+      fetchAll();
+    } catch (err) {
+      alert(err?.response?.data?.message || 'Failed to set primary bank account.');
+    }
   };
 
   const handleAddAccount = () => {
@@ -195,18 +204,36 @@ export function Banks() {
           {accounts.map((a) => (
             <div
               key={a.id}
-              className="card relative border border-slate-800/80 bg-slate-900/40 p-5 hover:border-slate-700/80 transition-all"
+              className={`card relative border p-5 transition-all ${
+                a.isPrimary
+                  ? 'border-amber-500/30 bg-amber-500/[0.02] hover:border-amber-500/50'
+                  : 'border-slate-800/80 bg-slate-900/40 hover:border-slate-700/80'
+              }`}
             >
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <Building2 className="h-5 w-5 text-blue-400" />
                     <h4 className="text-sm font-bold text-slate-100">{a.bankName}</h4>
+                    {a.isPrimary && (
+                      <span className="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">
+                        Primary
+                      </span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">{a.accountName}</div>
                 </div>
                 {isOwnerOrManager && (
                   <div className="flex gap-1">
+                    {!a.isPrimary && (
+                      <button
+                        onClick={() => handleSetPrimary(a.id)}
+                        className="rounded-lg p-1.5 text-slate-455 hover:bg-slate-800 hover:text-amber-400 transition-colors"
+                        title="Set as Primary Account"
+                      >
+                        <Star className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => handleEditAccount(a)}
                       className="rounded-lg p-1.5 text-slate-455 hover:bg-slate-800 hover:text-slate-100 transition-colors"

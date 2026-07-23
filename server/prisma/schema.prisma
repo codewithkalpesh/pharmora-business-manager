@@ -312,9 +312,11 @@ model BankAccount {
   ifscCode      String?
   openingBalance Decimal @default(0) @db.Decimal(12, 2)
   currentBalance Decimal @default(0) @db.Decimal(12, 2)
+  isPrimary     Boolean  @default(false)
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
 
   createdById   String?
   createdBy     User?             @relation(fields: [createdById], references: [id])
