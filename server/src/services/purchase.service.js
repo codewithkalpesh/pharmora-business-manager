@@ -124,13 +124,18 @@ class PurchaseService {
       notes: data.notes,
       createdById: userId,
     };
-
+ 
     const bill = await purchaseRepository.createBill(payload);
-
+ 
     if (paidAmount > 0) {
-      await this._syncPurchaseToCashBook(bill);
+      const mode = data.paymentMode || 'CASH';
+      if (mode === 'CASH') {
+        await this._syncPurchaseToCashBook(bill);
+      } else {
+        await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
+      }
     }
-
+ 
     return bill;
   }
 
@@ -229,6 +234,24 @@ class PurchaseService {
     if (existing.createdById !== userId) {
       throw new ApiError(403, 'You do not have permission to delete this bill.');
     }
+
+    // Reverse bank transaction if it exists
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+    const tag = `[PurchaseBill:${id}]`;
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+    if (existingTxn) {
+      await bankRepository.adjustBalance(existingTxn.accountId, Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
+    }
+
+    // Otherwise reverse from cashbook if paid amount existed
+    if (!existingTxn && Number(existing.paidAmount) > 0) {
+      await this._reversePurchaseFromCashBook(existing);
+    }
+
     return purchaseRepository.deleteBill(id);
   }
 
@@ -316,6 +339,89 @@ class PurchaseService {
           cashDifference: -paidAmount,
           notes: `Auto-created from stock purchase: Invoice #${bill.invoiceNo}`,
           createdById: bill.createdById,
+        },
+      });
+    }
+  }
+
+  async _syncPurchaseToBank(bill, paymentMode, bankAccountId, userId) {
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+    const cashBookService = require('./cashbook.service');
+
+    let targetBankAccountId = bankAccountId;
+    if (!targetBankAccountId) {
+      const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+      if (primaryBank) {
+        targetBankAccountId = primaryBank.id;
+      }
+    }
+
+    if (!targetBankAccountId) return;
+
+    const tag = `[PurchaseBill:${bill.id}]`;
+    const description = `Stock Purchase Advance: Invoice #${bill.invoiceNo} ${tag}`;
+    const amount = Number(bill.paidAmount);
+
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      const prevAmount = Number(existingTxn.amount);
+      const delta = amount - prevAmount;
+      if (delta !== 0) {
+        await prisma.bankTransaction.update({
+          where: { id: existingTxn.id },
+          data: { amount, description },
+        });
+        await bankRepository.adjustBalance(existingTxn.accountId, -delta);
+      }
+    } else {
+      const account = await bankRepository.findAccountById(targetBankAccountId);
+      if (!account) return;
+      const newBalance = Number(account.currentBalance) - amount;
+      await prisma.bankTransaction.create({
+        data: {
+          accountId: targetBankAccountId,
+          type: 'WITHDRAWAL',
+          date: bill.billDate || new Date(),
+          amount,
+          description,
+          runningBalance: newBalance,
+          createdById: userId,
+        },
+      });
+      await bankRepository.adjustBalance(targetBankAccountId, -amount);
+    }
+  }
+
+  async _reversePurchaseFromCashBook(bill) {
+    const prisma = require('../config/prisma');
+    const billDate = new Date(bill.billDate);
+    const startOfDay = new Date(billDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(billDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const cashBook = await prisma.cashBook.findFirst({
+      where: {
+        date: { gte: startOfDay, lte: endOfDay },
+        createdById: bill.createdById,
+      },
+    });
+
+    if (cashBook) {
+      const paidAmount = Number(bill.paidAmount);
+      const newTotalExp = Math.max(0, Number(cashBook.totalExpenses) - paidAmount);
+      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - newTotalExp;
+      const newDifference = Number(cashBook.closingCash) - expectedClosing;
+
+      await prisma.cashBook.update({
+        where: { id: cashBook.id },
+        data: {
+          totalExpenses: newTotalExp,
+          cashDifference: newDifference,
         },
       });
     }

@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery } from '@tanstack/react-query';
 import { purchaseApi } from '../../api/purchase.api';
+import { bankApi } from '../../api/bank.api';
 import { Loader2 } from 'lucide-react';
 import addDays from 'date-fns/addDays';
 import {
@@ -21,8 +22,21 @@ const billSchema = z.object({
   gstAmount: z.coerce.number().min(0, 'Must be positive').default(0),
   discountAmount: z.coerce.number().min(0, 'Must be positive').default(0),
   paidAmount: z.coerce.number().min(0, 'Must be positive').default(0),
+  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
+  bankAccountId: z.string().optional().nullable().or(z.literal('')),
   notes: z.string().optional(),
-});
+}).refine(
+  (data) => {
+    if (data.paidAmount > 0 && data.paymentMode !== 'CASH' && !data.bankAccountId) {
+      return false;
+    }
+    return true;
+  },
+  {
+    message: 'Bank account is required for non-cash payments',
+    path: ['bankAccountId'],
+  }
+);
 
 export default function PurchaseForm({ initialData, onSuccess, onClose }) {
   const isEdit = !!initialData;
@@ -35,6 +49,11 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
   });
   const distributors = distData?.distributors || [];
 
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ['bank-accounts'],
+    queryFn: () => bankApi.getAccounts().then((r) => r.data.data || []),
+  });
+
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     resolver: zodResolver(billSchema),
     defaultValues: initialData
@@ -46,12 +65,15 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
           gstAmount: Number(initialData.gstAmount),
           discountAmount: Number(initialData.discountAmount),
           paidAmount: Number(initialData.paidAmount),
+          paymentMode: initialData.paymentMode || 'CASH',
+          bankAccountId: initialData.bankAccountId || '',
           notes: initialData.notes || '',
         }
       : {
           invoiceNo: '', distributorId: '',
           billDate: new Date().toISOString().split('T')[0],
-          dueDate: '', subtotal: '', gstAmount: 0, discountAmount: 0, paidAmount: 0, notes: '',
+          dueDate: '', subtotal: '', gstAmount: 0, discountAmount: 0, paidAmount: 0,
+          paymentMode: 'CASH', bankAccountId: '', notes: '',
         },
   });
 
@@ -147,6 +169,33 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
           <input type="number" step="0.01" placeholder="0.00" {...register('paidAmount')} {...inp()} />
         </FormField>
       </div>
+
+      {paidAmount > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <FormField label="Payment Mode *" error={errors.paymentMode?.message}>
+            <select {...register('paymentMode')} style={{ ...selectBase, ...(errors.paymentMode ? { borderColor: '#ef4444' } : {}) }}>
+              <option value="CASH">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="CARD">Card</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </FormField>
+          {watched.paymentMode !== 'CASH' && (
+            <FormField label="Select Bank Account *" error={errors.bankAccountId?.message}>
+              <select {...register('bankAccountId')} style={{ ...selectBase, ...(errors.bankAccountId ? { borderColor: '#ef4444' } : {}) }}>
+                <option value="">Select Account</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
+        </div>
+      )}
 
       {/* Summary strip */}
       <div style={{
