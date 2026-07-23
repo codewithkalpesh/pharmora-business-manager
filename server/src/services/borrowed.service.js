@@ -401,9 +401,9 @@ class BorrowedService {
     const prisma = require('../config/prisma');
     const borrowDate = new Date(item.borrowDate);
     const startOfDay = new Date(borrowDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(borrowDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     let cashBook = await prisma.cashBook.findFirst({
       where: {
@@ -469,9 +469,9 @@ class BorrowedService {
     const prisma = require('../config/prisma');
     const borrowDate = new Date(item.borrowDate);
     const startOfDay = new Date(borrowDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(borrowDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     const cashBook = await prisma.cashBook.findFirst({
       where: {

@@ -405,9 +405,9 @@ class CustomerService {
     const prisma = require('../config/prisma');
     const collectionDate = new Date(collection.collectionDate);
     const startOfDay = new Date(collectionDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(collectionDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     let cashBook = await prisma.cashBook.findFirst({
       where: {
@@ -470,9 +470,9 @@ class CustomerService {
     const prisma = require('../config/prisma');
     const collectionDate = new Date(collection.collectionDate);
     const startOfDay = new Date(collectionDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(collectionDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     const cashBook = await prisma.cashBook.findFirst({
       where: {

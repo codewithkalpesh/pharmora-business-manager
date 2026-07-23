@@ -42,15 +42,26 @@ class CashBookRepository {
   }
 
   async findByDate(date, userId) {
+    const startOfDay = new Date(date);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+
     return prisma.cashBook.findFirst({
-      where: { date: new Date(date), createdById: userId },
+      where: {
+        createdById: userId,
+        date: { gte: startOfDay, lte: endOfDay }
+      },
     });
   }
 
   async findPreviousEntry(date, userId) {
+    const startOfDay = new Date(date);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+
     return prisma.cashBook.findFirst({
       where: {
-        date: { lt: new Date(date) },
+        date: { lt: startOfDay },
         createdById: userId,
       },
       orderBy: { date: 'desc' },

@@ -297,9 +297,9 @@ class CashBookService {
     const prisma = require('../config/prisma');
 
     const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
+    startOfDay.setUTCHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    endOfDay.setUTCHours(23, 59, 59, 999);
 
     // 1. Fetch expenses for this user on this day
     const expenses = await prisma.expense.findMany({
