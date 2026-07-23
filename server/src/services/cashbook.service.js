@@ -91,11 +91,43 @@ class CashBookService {
     const entry = await cashBookRepository.findByDate(date, userId);
     
     if (!entry) {
-      // If no entry exists for today, fetch the previous entry to carry forward opening cash
       const previousEntry = await cashBookRepository.findPreviousEntry(date, userId);
+
+      const startOfDay = new Date(date);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      const prisma = require('../config/prisma');
+      const expenses = await prisma.expense.findMany({
+        where: {
+          createdById: userId,
+          date: { gte: startOfDay, lte: endOfDay }
+        }
+      });
+
+      const payments = await prisma.distributorPayment.findMany({
+        where: {
+          createdById: userId,
+          paymentDate: { gte: startOfDay, lte: endOfDay }
+        }
+      });
+
+      const repayments = await prisma.borrowedRepayment.findMany({
+        where: {
+          createdById: userId,
+          repaymentDate: { gte: startOfDay, lte: endOfDay }
+        }
+      });
+
+      const cashExpenses = expenses.filter(e => e.paymentMode === 'CASH').reduce((sum, e) => sum + Number(e.amount), 0) +
+                           payments.filter(p => p.paymentMode === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0) +
+                           repayments.filter(r => r.paymentMode === 'CASH').reduce((sum, r) => sum + Number(r.amount), 0);
+
       return {
         isNew: true,
         suggestedOpeningCash: previousEntry ? previousEntry.closingCash : 0,
+        suggestedTotalExpenses: cashExpenses,
       };
     }
     
@@ -348,7 +380,7 @@ class CashBookService {
       await prisma.cashBook.update({
         where: { id: cashBook.id },
         data: {
-          totalExpenses,
+          totalExpenses: cashExpenses,
           cashDifference
         }
       });
@@ -375,7 +407,7 @@ class CashBookService {
             upiReceipts: 0,
             cardReceipts: 0,
             otherIncome: 0,
-            totalExpenses,
+            totalExpenses: cashExpenses,
             bankDeposit: 0,
             closingCash: 0,
             cashDifference,
