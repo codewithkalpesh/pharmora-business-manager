@@ -129,11 +129,30 @@ class PurchaseService {
  
     if (paidAmount > 0) {
       const mode = data.paymentMode || 'CASH';
+      const prisma = require('../config/prisma');
+
+      // Create linked DistributorPayment
+      await prisma.distributorPayment.create({
+        data: {
+          distributorId: bill.distributorId,
+          billId: bill.id,
+          paymentDate: bill.billDate,
+          amount: paidAmount,
+          paymentMode: mode,
+          notes: `Advance Payment for Invoice #${bill.invoiceNo}`,
+          createdById: userId,
+        }
+      });
+
       if (mode === 'CASH') {
         await this._syncPurchaseToCashBook(bill);
       } else {
         await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
       }
+
+      // Recalculate bill status & paidAmount (ensures state consistency)
+      const paymentService = require('./payment.service');
+      await paymentService._recalcDistributorBills(bill.distributorId);
     }
  
     return bill;
@@ -223,7 +242,50 @@ class PurchaseService {
       notes: data.notes !== undefined ? data.notes : existing.notes,
     };
 
-    return purchaseRepository.updateBill(id, payload);
+    const bill = await purchaseRepository.updateBill(id, payload);
+
+    // Sync linked DistributorPayment
+    const prisma = require('../config/prisma');
+    const mode = data.paymentMode || existing.paymentMode || 'CASH';
+    const linkedPayment = await prisma.distributorPayment.findFirst({
+      where: { billId: id }
+    });
+
+    if (paidAmount > 0) {
+      if (linkedPayment) {
+        await prisma.distributorPayment.update({
+          where: { id: linkedPayment.id },
+          data: {
+            amount: paidAmount,
+            paymentMode: mode,
+            paymentDate: bill.billDate,
+            distributorId: bill.distributorId,
+          }
+        });
+      } else {
+        await prisma.distributorPayment.create({
+          data: {
+            distributorId: bill.distributorId,
+            billId: bill.id,
+            paymentDate: bill.billDate,
+            amount: paidAmount,
+            paymentMode: mode,
+            notes: `Advance Payment for Invoice #${bill.invoiceNo}`,
+            createdById: userId,
+          }
+        });
+      }
+    } else if (linkedPayment) {
+      await prisma.distributorPayment.delete({
+        where: { id: linkedPayment.id }
+      });
+    }
+
+    // Recalculate bill status & paidAmount
+    const paymentService = require('./payment.service');
+    await paymentService._recalcDistributorBills(bill.distributorId);
+
+    return bill;
   }
 
   async deleteBill(id, userId) {
@@ -247,11 +309,19 @@ class PurchaseService {
       await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
     }
 
+    // Delete linked distributor payment if it exists
+    await prisma.distributorPayment.deleteMany({
+      where: { billId: id }
+    });
+
     // Otherwise reverse from cashbook if paid amount existed
     if (!existingTxn && Number(existing.paidAmount) > 0) {
       await this._reversePurchaseFromCashBook(existing);
     }
 
+    const paymentService = require('./payment.service');
+    await paymentService._recalcDistributorBills(existing.distributorId);
+ 
     return purchaseRepository.deleteBill(id);
   }
 
