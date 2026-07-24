@@ -116,7 +116,7 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         .then(({ data }) => {
           if (data.success) {
             if (data.data.isNew) {
-              setValue('openingCash', Number(data.data.suggestedOpeningCash || 0));
+              setValue('openingCash', 0);
               setValue('totalExpenses', Number(data.data.suggestedTotalExpenses || 0));
             } else {
               setError(`An entry already exists for ${watched.date}. Close this and edit the existing entry.`);

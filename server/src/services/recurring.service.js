@@ -1,6 +1,7 @@
 const recurringRepository = require('../repositories/recurring.repository');
 const prisma = require('../config/prisma');
 const cashBookService = require('./cashbook.service');
+const notificationService = require('./notification.service');
 const ApiError = require('../utils/ApiError');
 
 class RecurringService {
@@ -257,14 +258,12 @@ class RecurringService {
       }
     }
 
-    await prisma.notification.create({
-      data: {
-        userId: recurring.createdById,
-        title: `Executed: ${recurring.title}`,
-        message: `Recurring ${recurring.type.toLowerCase()} of ₹${Number(recurring.amount).toLocaleString('en-IN')} was processed for ${executionDate.toLocaleDateString('en-IN')}.`,
-        type: 'INFO',
-        link: '/recurring',
-      },
+    await notificationService.createNotification({
+      userId: recurring.createdById,
+      title: `Executed: ${recurring.title}`,
+      message: `Recurring ${recurring.type.toLowerCase()} of ₹${Number(recurring.amount).toLocaleString('en-IN')} was processed for ${executionDate.toLocaleDateString('en-IN')}.`,
+      type: 'INFO',
+      link: '/recurring',
     });
   }
 
@@ -292,14 +291,12 @@ class RecurringService {
         });
 
         if (!existingNotif) {
-          await prisma.notification.create({
-            data: {
-              userId: schedule.createdById,
-              title: `Due: ${schedule.title}`,
-              message: `Reminder: Recurring ${schedule.type.toLowerCase()} of ₹${Number(schedule.amount).toLocaleString('en-IN')} is due on ${new Date(schedule.nextDueDate).toLocaleDateString('en-IN')}.`,
-              type: 'WARNING',
-              link: '/recurring',
-            },
+          await notificationService.createNotification({
+            userId: schedule.createdById,
+            title: `Due: ${schedule.title}`,
+            message: `Reminder: Recurring ${schedule.type.toLowerCase()} of ₹${Number(schedule.amount).toLocaleString('en-IN')} is due on ${new Date(schedule.nextDueDate).toLocaleDateString('en-IN')}.`,
+            type: 'WARNING',
+            link: '/recurring',
           });
         }
         continue;

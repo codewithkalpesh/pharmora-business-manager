@@ -1,6 +1,7 @@
 // src/services/borrowed.service.js
 const borrowedRepository = require('../repositories/borrowed.repository');
 const broadcastService = require('./broadcast.service');
+const notificationService = require('./notification.service');
 const prisma = require('../config/prisma');
 const ApiError = require('../utils/ApiError');
 
@@ -383,14 +384,12 @@ class BorrowedService {
     });
 
     if (!existing) {
-      await prisma.notification.create({
-        data: {
-          userId,
-          title,
-          message,
-          type: 'due_reminder',
-          link: '/borrowed',
-        },
+      await notificationService.createNotification({
+        userId,
+        title,
+        message,
+        type: 'due_reminder',
+        link: '/borrowed',
       });
     }
   }

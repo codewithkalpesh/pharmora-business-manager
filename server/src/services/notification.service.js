@@ -90,9 +90,31 @@ class NotificationService {
    * Create a notification (internal use)
    */
   async createNotification({ userId, title, message, type = 'INFO', link = null }) {
-    return prisma.notification.create({
+    const notif = await prisma.notification.create({
       data: { userId, title, message, type, link, status: 'UNREAD' },
     });
+
+    // Send real notification to user's phone if group link configured
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { groupWebhookUrl: true, autoBroadcastEnabled: true }
+      });
+      if (user && user.autoBroadcastEnabled && user.groupWebhookUrl?.trim()) {
+        const broadcastService = require('./broadcast.service');
+        const textMessage = `🔔 *New Alert Notification*\n------------------------------\n📌 *Title*: ${title}\n📝 *Details*: ${message}\n------------------------------`;
+        broadcastService._dispatchWebhook(user.groupWebhookUrl.trim(), textMessage, {
+          notificationId: notif.id,
+          title,
+          message,
+          type
+        }).catch(err => console.error('[NotificationService] Webhook dispatch failed:', err.message));
+      }
+    } catch (err) {
+      console.error('[NotificationService] Webhook notification dispatch failed:', err.message);
+    }
+
+    return notif;
   }
 
   /**
