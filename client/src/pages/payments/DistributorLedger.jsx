@@ -16,6 +16,7 @@ export function DistributorLedger({ distributorId, onClose, onSync }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [selectedBillForPayments, setSelectedBillForPayments] = useState(null);
 
   const fetchLedger = useCallback(() => {
     if (!distributorId) return;
@@ -37,6 +38,13 @@ export function DistributorLedger({ distributorId, onClose, onSync }) {
     setShowPaymentForm(false);
     fetchLedger();
     onSync?.();
+  };
+
+  const getPaymentsForBill = (billId) => {
+    if (!data?.ledger) return [];
+    return data.ledger.filter(
+      (entry) => entry.type === 'payment' && entry.details?.billId === billId
+    );
   };
 
   const handleReversePayment = async (paymentId) => {
@@ -236,7 +244,22 @@ export function DistributorLedger({ distributorId, onClose, onSync }) {
                               <Trash2 size={14} />
                             </button>
                           ) : (
-                            <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>—</span>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBillForPayments(entry.details)}
+                              style={{
+                                background: '#f1f5f9', border: '1px solid rgba(148,163,184,0.25)',
+                                cursor: 'pointer', color: '#475569', padding: '4px 10px',
+                                borderRadius: 6, fontSize: '0.6875rem', fontWeight: 700,
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                transition: 'all 0.15s',
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.background = '#e2e8f0'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.background = '#f1f5f9'; }}
+                              title="Show how this bill was paid"
+                            >
+                              View Payments
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -281,6 +304,90 @@ export function DistributorLedger({ distributorId, onClose, onSync }) {
                 onClose={() => setShowPaymentForm(false)}
                 onSuccess={handlePaymentSuccess}
               />
+            </Modal>
+          )}
+
+          {/* View Bill Payments Modal */}
+          {selectedBillForPayments && (
+            <Modal
+              isOpen={!!selectedBillForPayments}
+              onClose={() => setSelectedBillForPayments(null)}
+              title={`Payment Details: Invoice #${selectedBillForPayments.invoiceNo}`}
+            >
+              <div style={{ color: '#0f172a' }}>
+                <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid rgba(148,163,184,0.12)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Bill Amount:</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace' }}>₹{fmt(selectedBillForPayments.grandTotal)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Amount Paid:</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: '#059669' }}>₹{fmt(selectedBillForPayments.paidAmount)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.8125rem', color: '#64748b' }}>Remaining Balance:</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 700, fontFamily: 'monospace', color: Math.max(0, Number(selectedBillForPayments.grandTotal) - Number(selectedBillForPayments.paidAmount)) > 0 ? '#dc2626' : '#059669' }}>
+                      ₹{fmt(Math.max(0, Number(selectedBillForPayments.grandTotal) - Number(selectedBillForPayments.paidAmount)))}
+                    </span>
+                  </div>
+                </div>
+
+                <h5 style={{ margin: '0 0 10px', fontSize: '0.875rem', fontWeight: 700, color: '#1e293b' }}>
+                  Linked Payment Transactions
+                </h5>
+
+                {getPaymentsForBill(selectedBillForPayments.id).length === 0 ? (
+                  <div style={{ padding: '16px', background: '#f8fafc', borderRadius: 8, textAlign: 'center', color: '#64748b', fontSize: '0.8125rem' }}>
+                    No linked payment records found for this bill.
+                  </div>
+                ) : (
+                  <div style={{ border: '1px solid rgba(148,163,184,0.12)', borderRadius: 8, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '1px solid rgba(148,163,184,0.12)', color: '#64748b', fontSize: '0.6875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          <th style={{ padding: '8px 12px', textAlign: 'left' }}>Date</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left' }}>Mode</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'left' }}>Reference</th>
+                          <th style={{ padding: '8px 12px', textAlign: 'right' }}>Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {getPaymentsForBill(selectedBillForPayments.id).map((pay) => (
+                          <tr key={pay.id} style={{ borderBottom: '1px solid rgba(148,163,184,0.06)' }}>
+                            <td style={{ padding: '8px 12px', color: '#475569' }}>{fmtDate(pay.date)}</td>
+                            <td style={{ padding: '8px 12px' }}>
+                              <span style={{
+                                padding: '2px 6px', borderRadius: 4, fontSize: '0.6875rem', fontWeight: 600,
+                                background: '#f1f5f9', color: '#475569'
+                              }}>
+                                {pay.details?.paymentMode || 'CASH'}
+                              </span>
+                            </td>
+                            <td style={{ padding: '8px 12px', color: '#64748b' }}>{pay.details?.referenceNo || 'N/A'}</td>
+                            <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, fontFamily: 'monospace', color: '#059669' }}>
+                              ₹{fmt(pay.credit)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBillForPayments(null)}
+                    style={{
+                      padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
+                      background: '#f1f5f9', border: '1px solid rgba(148,163,184,0.25)',
+                      color: '#475569', fontSize: '0.8125rem', fontWeight: 600,
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </Modal>
           )}
         </>
