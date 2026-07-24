@@ -9,6 +9,9 @@ export const getPayments = (params = {}) =>
 export const createPayment = (data) =>
   api.post('/payments', data).then((r) => r.data);
 
+export const updatePayment = (id, data) =>
+  api.put(`/payments/${id}`, data).then((r) => r.data);
+
 export const deletePayment = (id) =>
   api.delete(`/payments/${id}`).then((r) => r.data);
 

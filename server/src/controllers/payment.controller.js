@@ -1,6 +1,6 @@
 // src/controllers/payment.controller.js
 const paymentService = require('../services/payment.service');
-const { createPaymentSchema } = require('../validators/payment.validator');
+const { createPaymentSchema, updatePaymentSchema } = require('../validators/payment.validator');
 const ApiError = require('../utils/ApiError');
 
 class PaymentController {
@@ -32,6 +32,21 @@ class PaymentController {
     try {
       const result = await paymentService.deletePayment(req.params.id, req.user.id);
       return res.json({ success: true, ...result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async updatePayment(req, res, next) {
+    try {
+      const body = { ...req.body };
+      if (body.amount !== undefined) body.amount = parseFloat(body.amount);
+      const parsed = updatePaymentSchema.safeParse(body);
+      if (!parsed.success) {
+        return next(new ApiError(422, 'Validation failed', parsed.error.flatten().fieldErrors));
+      }
+      const payment = await paymentService.updatePayment(req.params.id, parsed.data, req.user.id);
+      return res.json({ success: true, data: payment });
     } catch (err) {
       next(err);
     }

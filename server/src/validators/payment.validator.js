@@ -16,7 +16,9 @@ const createPaymentSchema = z.object({
 });
 
 const updatePaymentSchema = z.object({
-  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  distributorId: z.string().min(1, 'Distributor is required').optional(),
+  billId: z.string().optional().nullable(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
   amount: z.number().positive().optional(),
   paymentMode: z.enum(paymentModes).optional(),
   referenceNo: z.string().max(100).optional().nullable(),

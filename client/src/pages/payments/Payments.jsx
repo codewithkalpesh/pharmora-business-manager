@@ -1,6 +1,6 @@
 // src/pages/payments/Payments.jsx
 import { useState, useEffect, useCallback } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Pencil } from 'lucide-react';
 import { getPayments, deletePayment, getPaymentStats } from '../../api/payment.api';
 import { purchaseApi } from '../../api/purchase.api';
 import { PaymentForm } from './PaymentForm';
@@ -40,6 +40,7 @@ export function Payments() {
   const [page, setPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
   const [ledgerDistributorId, setLedgerDistributorId] = useState(null);
 
   const loadDistributors = useCallback(async () => {
@@ -268,7 +269,15 @@ export function Payments() {
                       {p.referenceNo || '—'}
                     </td>
                     <td className={styles.amountCell}>₹{fmt(p.amount)}</td>
-                    <td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button
+                        className={styles.editBtn}
+                        onClick={() => setEditingPayment(p)}
+                        title="Edit this payment"
+                      >
+                        <Pencil size={13} />
+                        Edit
+                      </button>
                       <button
                         className={styles.actionBtn}
                         onClick={() => handleDelete(p.id)}
@@ -303,12 +312,13 @@ export function Payments() {
 
       {/* Payment Form Modal */}
       <Modal
-        isOpen={showForm}
-        onClose={() => setShowForm(false)}
-        title="Record Distributor Payment"
+        isOpen={showForm || !!editingPayment}
+        onClose={() => { setShowForm(false); setEditingPayment(null); }}
+        title={editingPayment ? "Edit Distributor Payment" : "Record Distributor Payment"}
       >
         <PaymentForm
-          onClose={() => setShowForm(false)}
+          initialData={editingPayment}
+          onClose={() => { setShowForm(false); setEditingPayment(null); }}
           onSuccess={onFormSuccess}
         />
       </Modal>

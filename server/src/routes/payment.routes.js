@@ -18,5 +18,6 @@ router.get('/ledger/:distributorId', paymentController.getDistributorLedger.bind
 router.get('/', paymentController.getPayments.bind(paymentController));
 router.post('/', requireRole(['OWNER', 'MANAGER', 'ACCOUNTANT']), paymentController.createPayment.bind(paymentController));
 router.delete('/:id', requireRole(['OWNER', 'MANAGER']), paymentController.deletePayment.bind(paymentController));
+router.put('/:id', requireRole(['OWNER', 'MANAGER', 'ACCOUNTANT']), paymentController.updatePayment.bind(paymentController));
 
 module.exports = router;

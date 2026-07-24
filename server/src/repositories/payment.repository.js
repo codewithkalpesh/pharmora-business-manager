@@ -36,6 +36,14 @@ class PaymentRepository {
     return prisma.distributorPayment.delete({ where: { id } });
   }
 
+  async updatePayment(id, data) {
+    return prisma.distributorPayment.update({
+      where: { id },
+      data,
+      include: { distributor: true, bill: true },
+    });
+  }
+
   async getDistributorLedger(distributorId) {
     const [distributor, bills, payments] = await Promise.all([
       prisma.distributor.findUnique({ where: { id: distributorId } }),

@@ -2,7 +2,7 @@
 // Redesigned to use the shared Modal + light-mode FormField utilities
 import { useState, useEffect } from 'react';
 import { purchaseApi } from '../../api/purchase.api';
-import { createPayment } from '../../api/payment.api';
+import { createPayment, updatePayment } from '../../api/payment.api';
 import { Loader2 } from 'lucide-react';
 import {
   FormField, inputBase, selectBase, cancelBtnStyle, submitBtnStyle,
@@ -12,20 +12,20 @@ import {
 const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER'];
 const today = () => new Date().toISOString().split('T')[0];
 
-export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, prefillBillId = null }) {
+export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, prefillBillId = null, initialData = null }) {
   const [distributors, setDistributors] = useState([]);
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [form, setForm] = useState({
-    distributorId: prefillDistributorId || '',
-    billId: prefillBillId || '',
-    paymentDate: today(),
-    amount: '',
-    paymentMode: 'CASH',
-    referenceNo: '',
-    notes: '',
+    distributorId: initialData?.distributorId || prefillDistributorId || '',
+    billId: initialData?.billId || prefillBillId || '',
+    paymentDate: initialData?.paymentDate ? new Date(initialData.paymentDate).toISOString().split('T')[0] : today(),
+    amount: initialData?.amount || '',
+    paymentMode: initialData?.paymentMode || 'CASH',
+    referenceNo: initialData?.referenceNo || '',
+    notes: initialData?.notes || '',
   });
 
   useEffect(() => {
@@ -65,11 +65,15 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
     setError(null);
     setLoading(true);
     try {
-      await createPayment({ ...form, amount: parseFloat(form.amount), billId: form.billId || null });
+      if (initialData) {
+        await updatePayment(initialData.id, { ...form, amount: parseFloat(form.amount), billId: form.billId || null });
+      } else {
+        await createPayment({ ...form, amount: parseFloat(form.amount), billId: form.billId || null });
+      }
       onSuccess?.();
       onClose?.();
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to record payment.');
+      setError(err?.response?.data?.message || `Failed to ${initialData ? 'update' : 'record'} payment.`);
     } finally {
       setLoading(false);
     }
@@ -216,7 +220,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         <button type="button" onClick={onClose} style={cancelBtnStyle}>Cancel</button>
         <button type="submit" disabled={loading} style={{ ...submitBtnStyle, opacity: loading ? 0.7 : 1 }}>
           {loading ? <Loader2 size={14} className="animate-spin" /> : '💳'}
-          {loading ? 'Saving…' : 'Record Payment'}
+          {loading ? 'Saving…' : initialData ? 'Save Changes' : 'Record Payment'}
         </button>
       </div>
     </form>

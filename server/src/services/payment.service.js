@@ -132,6 +132,81 @@ class PaymentService {
     return { message: 'Payment deleted successfully.' };
   }
 
+  async updatePayment(id, data, userId) {
+    const existing = await paymentRepository.findPaymentById(id);
+    if (!existing) {
+      throw new ApiError(404, 'Payment not found.');
+    }
+    if (existing.createdById && existing.createdById !== userId) {
+      throw new ApiError(403, 'You do not have permission to update this payment.');
+    }
+
+    // Validate distributor exists if changed
+    let distributorId = existing.distributorId;
+    if (data.distributorId && data.distributorId !== existing.distributorId) {
+      const distributor = await purchaseRepository.findDistributorById(data.distributorId);
+      if (!distributor) {
+        throw new ApiError(404, 'Distributor not found.');
+      }
+      distributorId = data.distributorId;
+    }
+
+    // Validate linked bill if changed
+    let billId = existing.billId;
+    if (data.billId !== undefined) {
+      if (data.billId) {
+        const bill = await purchaseRepository.findBillById(data.billId);
+        if (!bill) {
+          throw new ApiError(404, 'Purchase bill not found.');
+        }
+        if (bill.distributorId !== distributorId) {
+          throw new ApiError(400, 'The specified bill does not belong to this distributor.');
+        }
+      }
+      billId = data.billId;
+    }
+
+    const amount = data.amount !== undefined ? parseFloat(data.amount) : Number(existing.amount);
+    const paymentMode = data.paymentMode || existing.paymentMode;
+    const paymentDate = data.paymentDate ? new Date(data.paymentDate) : existing.paymentDate;
+
+    const payload = {
+      distributorId,
+      billId,
+      paymentDate,
+      amount,
+      paymentMode,
+      referenceNo: data.referenceNo !== undefined ? data.referenceNo : existing.referenceNo,
+      notes: data.notes !== undefined ? data.notes : existing.notes,
+    };
+
+    // If payment mode or amount changed, clean up previous bank transaction first
+    if (paymentMode !== existing.paymentMode || amount !== Number(existing.amount) || paymentDate.getTime() !== existing.paymentDate.getTime()) {
+      await this._cleanupPaymentBankSync(existing);
+    }
+
+    const updated = await paymentRepository.updatePayment(id, payload);
+
+    // Sync updated payment withdrawal to bank if not CASH
+    if (updated.paymentMode !== 'CASH') {
+      await this._syncPaymentToBank(updated, userId);
+    }
+
+    // Recalculate bill statuses for both the old distributor and new distributor (in case it changed)
+    await this._recalcDistributorBills(existing.distributorId);
+    if (distributorId !== existing.distributorId) {
+      await this._recalcDistributorBills(distributorId);
+    }
+
+    // Sync CashBook totals for old date and new date
+    await cashBookService.syncTotalExpenses(userId, existing.paymentDate);
+    if (paymentDate.getTime() !== existing.paymentDate.getTime()) {
+      await cashBookService.syncTotalExpenses(userId, paymentDate);
+    }
+
+    return updated;
+  }
+
   async getDistributorLedger(distributorId, userId) {
     const distributor = await purchaseRepository.findDistributorById(distributorId);
     if (!distributor) {
