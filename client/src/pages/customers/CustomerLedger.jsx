@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, MessageCircle } from 'lucide-react';
 import Modal from '../../components/common/Modal';
 import { customerApi } from '../../api/customer.api';
 import { formatCurrency } from '../../lib/utils';
@@ -33,6 +33,40 @@ export function CustomerLedger({ isOpen, onClose, customerId }) {
       month: 'short',
       year: 'numeric',
     });
+  };
+
+  const handleSendWhatsApp = (entry) => {
+    if (!data?.customer?.phone) return;
+
+    const phone = data.customer.phone;
+    const cleanPhone = phone.replace(/\D/g, '');
+    const formattedPhone = cleanPhone.length === 10 ? '91' : '';
+    const targetPhone = formattedPhone + cleanPhone;
+
+    const amount = Number(entry.debit > 0 ? entry.debit : entry.credit).toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
+    const dateStr = new Date(entry.date).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    const totalOutstanding = data.summary?.outstanding !== undefined
+      ? `\n⚖️ *Total Outstanding Balance:* ₹${Number(data.summary.outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      : '';
+
+    let message = '';
+    if (entry.type === 'credit') {
+      message = `*Pharmora Business Manager*\n------------------------------\nDear *${data.customer.name}*,\n\nA new credit entry has been recorded.\n💰 *Amount:* ₹${amount}\n📅 *Date:* ${dateStr}\n📝 *Description:* ${entry.description}${totalOutstanding}\n\nThank you for your business!`;
+    } else {
+      message = `*Pharmora Business Manager*\n------------------------------\nDear *${data.customer.name}*,\n\nWe have successfully received your payment.\n💰 *Amount:* ₹${amount}\n📅 *Date:* ${dateStr}\n📝 *Details:* ${entry.description}${totalOutstanding}\n\nThank you!`;
+    }
+
+    const url = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
   };
 
   return (
@@ -112,6 +146,7 @@ export function CustomerLedger({ isOpen, onClose, customerId }) {
                     <th className="px-4 py-3">Transaction Details</th>
                     <th className="px-4 py-3 text-right">Debit (Dr)</th>
                     <th className="px-4 py-3 text-right">Credit (Cr)</th>
+                    <th className="px-4 py-3 text-center">Share</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
@@ -152,11 +187,24 @@ export function CustomerLedger({ isOpen, onClose, customerId }) {
                         <td className="px-4 py-3.5 text-right font-semibold text-emerald-400 tabular-nums">
                           {entry.credit > 0 ? formatCurrency(entry.credit) : '—'}
                         </td>
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          {data.customer?.phone ? (
+                            <button
+                              onClick={() => handleSendWhatsApp(entry)}
+                              className="p-1 text-slate-400 hover:text-emerald-500 rounded transition-colors"
+                              title="Send WhatsApp Receipt"
+                            >
+                              <MessageCircle className="h-4.5 w-4.5" />
+                            </button>
+                          ) : (
+                            <span className="text-slate-600">—</span>
+                          )}
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="4" className="px-4 py-12 text-center text-slate-500">
+                      <td colSpan="5" className="px-4 py-12 text-center text-slate-500">
                         No transactions registered in ledger yet.
                       </td>
                     </tr>
