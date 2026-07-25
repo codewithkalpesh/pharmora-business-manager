@@ -254,4 +254,4 @@ export function CustomerCreditForm({ isOpen, onClose, onSuccess, prefillCustomer
     </Modal>
   );
 }
-export default CustomerCreditForm;tForm;
+export default CustomerCreditForm;
