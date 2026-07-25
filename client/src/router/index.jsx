@@ -52,7 +52,6 @@ export const router = createBrowserRouter([
       { path: 'purchases', element: <Purchases /> },
       { path: 'distributors', element: <Distributors /> },
       { path: 'payments', element: <Payments /> },
-      { path: 'customers', element: <Customers /> },
       { path: 'borrowed', element: <BorrowedMoney /> },
       { path: 'banks', element: <Banks /> },
       { path: 'recurring', element: <Recurring /> },

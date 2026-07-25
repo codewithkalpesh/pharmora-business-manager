@@ -127,14 +127,6 @@ export function Dashboard() {
       accentColor: '#ef4444',
     },
     {
-      label: 'Customer Credit',
-      value: kpis.customerCredit,
-      icon: Users,
-      iconBg: 'rgba(139,92,246,0.1)',
-      iconColor: '#8b5cf6',
-      accentColor: '#8b5cf6',
-    },
-    {
       label: 'Monthly Profit',
       value: kpis.monthlyProfit,
       icon: PiggyBank,
