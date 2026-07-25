@@ -1,18 +1,18 @@
 // src/services/dashboard.service.js
 const prisma = require('../config/prisma');
 
-const getTodayRange = () => {
-  const start = new Date();
+const getTodayRange = (refDate = new Date()) => {
+  const start = new Date(refDate);
   start.setHours(0, 0, 0, 0);
-  const end = new Date();
+  const end = new Date(refDate);
   end.setHours(23, 59, 59, 999);
   return { start, end };
 };
 
-const getMonthRange = () => {
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+const getMonthRange = (refDate = new Date()) => {
+  const d = new Date(refDate);
+  const start = new Date(d.getFullYear(), d.getMonth(), 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
   return { start, end };
 };
 
@@ -24,9 +24,10 @@ const getLast30DaysRange = () => {
   return { start, end };
 };
 
-const getKPIs = async (userId) => {
-  const today = getTodayRange();
-  const month = getMonthRange();
+const getKPIs = async (userId, dateStr) => {
+  const refDate = dateStr ? new Date(dateStr) : new Date();
+  const today = getTodayRange(refDate);
+  const month = getMonthRange(refDate);
 
   const [
     todayCashBook,
@@ -52,9 +53,9 @@ const getKPIs = async (userId) => {
     prisma.cashBook.findFirst({
       where: { date: { gte: today.start, lte: today.end }, createdById: userId },
     }),
-    // Latest cash book entry for actual cash in hand
+    // Latest cash book entry for actual cash in hand (on or before selected date)
     prisma.cashBook.findFirst({
-      where: { createdById: userId },
+      where: { date: { lte: today.end }, createdById: userId },
       orderBy: { date: 'desc' },
     }),
     // Monthly operating expenses for this user

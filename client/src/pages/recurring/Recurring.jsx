@@ -19,6 +19,67 @@ export function Recurring() {
   const [filterType, setFilterType] = useState('');
   const [filterFrequency, setFilterFrequency] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
+
+  const getDynamicStats = () => {
+    if (!selectedMonth || !stats) return stats;
+
+    const [year, month] = selectedMonth.split('-');
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const activeRecurrings = schedules.filter((s) => {
+      if (!s.isActive) return false;
+      const start = new Date(s.startDate);
+      const end = s.endDate ? new Date(s.endDate) : null;
+      return start <= endOfMonth && (end === null || end >= startOfMonth);
+    });
+
+    let projectedMonthlyExpense = 0;
+    let projectedMonthlyIncome = 0;
+
+    activeRecurrings.forEach((r) => {
+      const amt = Number(r.amount);
+      let factor = 0;
+
+      if (r.frequency === 'DAILY') factor = 30;
+      else if (r.frequency === 'WEEKLY') factor = 4.33;
+      else if (r.frequency === 'MONTHLY') factor = 1;
+      else if (r.frequency === 'QUARTERLY') factor = 1 / 3;
+      else if (r.frequency === 'HALF_YEARLY') factor = 1 / 6;
+      else if (r.frequency === 'YEARLY') factor = 1 / 12;
+      else factor = 1;
+
+      if (r.type === 'EXPENSE') {
+        projectedMonthlyExpense += amt * factor;
+      } else {
+        projectedMonthlyIncome += amt * factor;
+      }
+    });
+
+    return {
+      activeCount: activeRecurrings.length,
+      projectedMonthlyExpense,
+      projectedMonthlyIncome,
+    };
+  };
+
+  const dynamicStats = getDynamicStats();
+
+  const getDisplayedSchedules = () => {
+    if (!selectedMonth) return schedules;
+    const [year, month] = selectedMonth.split('-');
+    const startOfMonth = new Date(year, month - 1, 1);
+    const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999);
+
+    return schedules.filter((s) => {
+      const start = new Date(s.startDate);
+      const end = s.endDate ? new Date(s.endDate) : null;
+      return start <= endOfMonth && (end === null || end >= startOfMonth);
+    });
+  };
+
+  const displayedSchedules = getDisplayedSchedules();
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -180,27 +241,27 @@ export function Recurring() {
       />
 
       {/* KPI stats */}
-      {stats && (
+      {dynamicStats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
           <div className="kpi-card">
             <div className="kpi-label">Active Schedules</div>
-            <div className="kpi-value text-slate-100">{stats.activeCount}</div>
+            <div className="kpi-value text-slate-100">{dynamicStats.activeCount}</div>
             <div className="text-[11px] text-slate-450 mt-1">Total recurring flows</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Projected Monthly Expenses</div>
-            <div className="kpi-value text-red-400">{formatCurrency(stats.projectedMonthlyExpense)}</div>
+            <div className="kpi-value text-red-400">{formatCurrency(dynamicStats.projectedMonthlyExpense)}</div>
             <div className="text-[11px] text-slate-450 mt-1">Calculated monthly rate</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Projected Monthly Income</div>
-            <div className="kpi-value text-emerald-400">{formatCurrency(stats.projectedMonthlyIncome)}</div>
+            <div className="kpi-value text-emerald-400">{formatCurrency(dynamicStats.projectedMonthlyIncome)}</div>
             <div className="text-[11px] text-slate-450 mt-1">Calculated monthly rate</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Net Projected Monthly Cashflow</div>
-            <div className={`kpi-value ${stats.projectedMonthlyIncome - stats.projectedMonthlyExpense >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-              {formatCurrency(stats.projectedMonthlyIncome - stats.projectedMonthlyExpense)}
+            <div className={`kpi-value ${dynamicStats.projectedMonthlyIncome - dynamicStats.projectedMonthlyExpense >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+              {formatCurrency(dynamicStats.projectedMonthlyIncome - dynamicStats.projectedMonthlyExpense)}
             </div>
             <div className="text-[11px] text-slate-450 mt-1">Projected net cashflow</div>
           </div>
@@ -264,6 +325,15 @@ export function Recurring() {
           />
         </div>
 
+        <input
+          type="month"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="input font-semibold"
+          style={{ width: '160px', height: '36px' }}
+          title="Select Month"
+        />
+
         <select
           value={filterType}
           onChange={(e) => setFilterType(e.target.value)}
@@ -290,6 +360,20 @@ export function Recurring() {
           <option value="YEARLY">Yearly</option>
           <option value="CUSTOM">Custom Days</option>
         </select>
+
+        {(filterType || filterFrequency || searchQuery || selectedMonth) && (
+          <button
+            onClick={() => {
+              setFilterType('');
+              setFilterFrequency('');
+              setSearchQuery('');
+              setSelectedMonth('');
+            }}
+            className="text-xs text-slate-400 hover:text-slate-100 transition-colors"
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       {/* Main schedule card grid */}
@@ -298,9 +382,9 @@ export function Recurring() {
           <RefreshCw className="h-8 w-8 animate-spin text-emerald-500" />
           <span>Loading schedules...</span>
         </div>
-      ) : schedules.length > 0 ? (
+      ) : displayedSchedules.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {schedules.map((s) => (
+          {displayedSchedules.map((s) => (
             <div
               key={s.id}
               className={`card relative border p-5 flex flex-col justify-between transition-all hover:border-slate-700/80 bg-slate-900/20 ${

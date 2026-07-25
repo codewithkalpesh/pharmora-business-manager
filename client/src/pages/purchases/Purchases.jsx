@@ -21,8 +21,23 @@ export function Purchases() {
   const [status, setStatus] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+
+  const handleMonthChange = (monthStr) => {
+    if (!monthStr) {
+      setStartDate('');
+      setEndDate('');
+      return;
+    }
+    const [year, month] = monthStr.split('-');
+    const firstDay = `${year}-${month}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    setStartDate(firstDay);
+    setEndDate(lastDayStr);
+  };
 
   // Fetch distributors for filters
   const { data: distData } = useQuery({
@@ -41,8 +56,8 @@ export function Purchases() {
 
   // Fetch stats
   const { data: stats = { outstandingDues: 0, monthPurchases: 0, dueSoonAmount: 0, dueSoonCount: 0 } } = useQuery({
-    queryKey: ['purchase-stats'],
-    queryFn: () => purchaseApi.getStats().then((r) => r.data.data),
+    queryKey: ['purchase-stats', { startDate, endDate }],
+    queryFn: () => purchaseApi.getStats({ startDate, endDate }).then((r) => r.data.data),
     staleTime: 60 * 1000,
   });
 
@@ -181,26 +196,42 @@ export function Purchases() {
             <option value="PAID">Paid</option>
           </select>
 
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-1.5 text-xs text-slate-400">
             <Calendar className="h-4 w-4" />
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                handleMonthChange(e.target.value);
+              }}
+              className="rounded-xl border border-slate-800 bg-slate-950 p-1.5 text-[11px] text-slate-200 focus:outline-none"
+            />
+            <span className="text-slate-500 font-semibold px-1">or Range:</span>
             <input
               type="date"
               value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
+              onChange={(e) => {
+                setStartDate(e.target.value);
+                setSelectedMonth('');
+              }}
               className="rounded-xl border border-slate-800 bg-slate-950 p-1.5 text-[11px] text-slate-200 focus:outline-none"
             />
             <span>to</span>
             <input
               type="date"
               value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
+              onChange={(e) => {
+                setEndDate(e.target.value);
+                setSelectedMonth('');
+              }}
               className="rounded-xl border border-slate-800 bg-slate-950 p-1.5 text-[11px] text-slate-200 focus:outline-none"
             />
           </div>
 
-          {(distributorId || status || startDate || endDate || search) && (
+          {(distributorId || status || startDate || endDate || selectedMonth || search) && (
             <button
-              onClick={() => { setDistributorId(''); setStatus(''); setStartDate(''); setEndDate(''); setSearch(''); }}
+              onClick={() => { setDistributorId(''); setStatus(''); setStartDate(''); setEndDate(''); setSelectedMonth(''); setSearch(''); }}
               className="text-xs text-slate-400 hover:text-slate-100 transition-colors"
             >
               Clear filters

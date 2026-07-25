@@ -1,4 +1,5 @@
 // src/pages/dashboard/Dashboard.jsx
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   DollarSign, TrendingUp, Wallet, Building2,
@@ -57,10 +58,11 @@ function UpcomingRow({ item }) {
 
 export function Dashboard() {
   const { user } = useAuth();
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
-  const { data: kpiData, isLoading: kpisLoading } = useQuery({
-    queryKey: ['dashboard-kpis'],
-    queryFn: () => dashboardApi.getKPIs().then((r) => r.data.data),
+  const { data: kpiData, isLoading: kpisLoading, refetch: refetchKPIs } = useQuery({
+    queryKey: ['dashboard-kpis', selectedDate],
+    queryFn: () => dashboardApi.getKPIs({ date: selectedDate }).then((r) => r.data.data),
     staleTime: 2 * 60 * 1000,
     retry: 1,
   });
@@ -164,12 +166,24 @@ export function Dashboard() {
       {/* Header */}
       <PageHeader
         title={`${GREETING()}, ${user?.name?.split(' ')[0] || 'there'} 👋`}
-        subtitle={`${format(new Date(), 'EEEE, dd MMMM yyyy')} — Here's your business at a glance`}
+        subtitle={`${format(new Date(selectedDate), 'EEEE, dd MMMM yyyy')} — Here's your business at a glance`}
         actions={
-          <button className="btn btn-secondary btn-sm" onClick={() => window.location.reload()}>
-            <RefreshCw size={14} />
-            Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200">
+              <CalendarClock size={14} className="text-slate-400" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="bg-transparent border-none text-slate-200 focus:outline-none text-xs"
+                style={{ width: '110px' }}
+              />
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => refetchKPIs()}>
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+          </div>
         }
       />
 

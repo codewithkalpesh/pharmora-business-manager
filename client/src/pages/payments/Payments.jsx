@@ -36,8 +36,21 @@ export function Payments() {
     paymentMode: '',
     startDate: '',
     endDate: '',
+    selectedMonth: '',
   });
   const [page, setPage] = useState(1);
+
+  const handleMonthChange = (monthStr) => {
+    if (!monthStr) {
+      setFilters((f) => ({ ...f, selectedMonth: '', startDate: '', endDate: '' }));
+      return;
+    }
+    const [year, month] = monthStr.split('-');
+    const firstDay = `${year}-${month}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const lastDayStr = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    setFilters((f) => ({ ...f, selectedMonth: monthStr, startDate: firstDay, endDate: lastDayStr }));
+  };
 
   const [showForm, setShowForm] = useState(false);
   const [editingPayment, setEditingPayment] = useState(null);
@@ -63,6 +76,7 @@ export function Payments() {
     try {
       const params = { page, limit: 20, ...filters };
       Object.keys(params).forEach((k) => { if (!params[k]) delete params[k]; });
+      delete params.selectedMonth;
       const r = await getPayments(params);
       setPayments(r.payments || []);
       setPagination(r.pagination || { page: 1, totalPages: 1, total: 0 });
@@ -84,7 +98,13 @@ export function Payments() {
 
   const handleFilter = (field, value) => {
     setPage(1);
-    setFilters((f) => ({ ...f, [field]: value }));
+    setFilters((f) => {
+      const next = { ...f, [field]: value };
+      if (field === 'startDate' || field === 'endDate') {
+        next.selectedMonth = '';
+      }
+      return next;
+    });
   };
 
   const resetFilters = () => {
@@ -94,6 +114,7 @@ export function Payments() {
       paymentMode: '',
       startDate: '',
       endDate: '',
+      selectedMonth: '',
     });
   };
 
@@ -177,6 +198,14 @@ export function Payments() {
           ))}
         </select>
 
+        <input
+          type="month"
+          value={filters.selectedMonth}
+          onChange={(e) => handleMonthChange(e.target.value)}
+          title="Select Month"
+          style={{ width: '130px' }}
+        />
+        <span style={{ color: '#64748b', fontSize: '0.75rem', alignSelf: 'center' }}>or Range:</span>
         <input
           type="date"
           value={filters.startDate}

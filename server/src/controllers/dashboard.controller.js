@@ -4,7 +4,7 @@ const ApiResponse = require('../utils/ApiResponse');
 
 const getKPIs = async (req, res, next) => {
   try {
-    const data = await dashboardService.getKPIs(req.user.id);
+    const data = await dashboardService.getKPIs(req.user.id, req.query.date);
     return res.status(200).json(new ApiResponse(200, data, 'Dashboard KPIs loaded.'));
   } catch (err) {
     next(err);
