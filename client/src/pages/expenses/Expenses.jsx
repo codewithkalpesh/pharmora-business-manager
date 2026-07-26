@@ -17,12 +17,15 @@ import { useSearchParams } from 'react-router-dom';
 
 export function Expenses() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCatOpen, setIsCatOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [categoryId, setCategoryId] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  const initialToday = searchParams.get('filter') === 'today' ? format(new Date(), 'yyyy-MM-dd') : '';
+  const [startDate, setStartDate] = useState(initialToday);
+  const [endDate, setEndDate] = useState(initialToday);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);

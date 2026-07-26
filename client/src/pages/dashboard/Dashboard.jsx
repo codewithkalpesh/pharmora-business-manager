@@ -104,7 +104,7 @@ export function Dashboard() {
       iconColor: '#ef4444',
       accentColor: '#ef4444',
       trend: -3.2,
-      onClick: () => navigate('/expenses'),
+      onClick: () => navigate('/expenses?filter=today'),
     },
     {
       label: 'Cash in Hand',
