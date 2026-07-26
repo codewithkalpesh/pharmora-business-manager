@@ -180,7 +180,7 @@ class PurchaseService {
 
         if (mode === 'CASH') {
           await this._syncPurchaseToCashBook(bill);
-        } else {
+        } else if (mode !== 'OTHER') {
           await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
         }
       }
@@ -363,7 +363,7 @@ class PurchaseService {
 
         if (mode === 'CASH') {
           await this._syncPurchaseToCashBook(bill);
-        } else {
+        } else if (mode !== 'OTHER') {
           await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
         }
       }

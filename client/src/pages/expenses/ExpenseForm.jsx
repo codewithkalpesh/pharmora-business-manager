@@ -25,12 +25,12 @@ const formSchema = z.object({
   upiAmount: z.coerce.number().min(0).optional().nullable(),
 }).refine(
   (data) => {
-    if (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
+    if (data.paymentMode !== 'CASH' && data.paymentMode !== 'OTHER' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
     if (data.paymentMode === 'BOTH' && Number(data.upiAmount) > 0 && !data.bankAccountId) return false;
     return true;
   },
   {
-    message: 'Bank account is required for non-cash payments',
+    message: 'Bank account is required for bank payments',
     path: ['bankAccountId'],
   }
 ).refine(
@@ -89,7 +89,7 @@ export default function ExpenseForm({ initialData, onSuccess, onClose }) {
 
   const paymentMode = useWatch({ control, name: 'paymentMode' });
   const upiAmountWatched = useWatch({ control, name: 'upiAmount' });
-  const showBankSelector = paymentMode && (paymentMode !== 'CASH' && paymentMode !== 'BOTH' || (paymentMode === 'BOTH' && Number(upiAmountWatched) > 0));
+  const showBankSelector = paymentMode && (paymentMode !== 'CASH' && paymentMode !== 'OTHER' && paymentMode !== 'BOTH' || (paymentMode === 'BOTH' && Number(upiAmountWatched) > 0));
   const inp = useInputStyle(errors);
 
   const onSubmit = async (values) => {
@@ -107,7 +107,7 @@ export default function ExpenseForm({ initialData, onSuccess, onClose }) {
       formData.append('cashAmount', values.cashAmount || 0);
       formData.append('upiAmount', values.upiAmount || 0);
     }
-    if ((values.paymentMode !== 'CASH' && values.paymentMode !== 'BOTH' || (values.paymentMode === 'BOTH' && Number(values.upiAmount) > 0)) && values.bankAccountId) {
+    if ((values.paymentMode !== 'CASH' && values.paymentMode !== 'OTHER' && values.paymentMode !== 'BOTH' || (values.paymentMode === 'BOTH' && Number(values.upiAmount) > 0)) && values.bankAccountId) {
       formData.append('bankAccountId', values.bankAccountId);
     }
     if (selectedFile) formData.append('receipt', selectedFile);

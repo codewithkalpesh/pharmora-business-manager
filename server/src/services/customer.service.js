@@ -231,8 +231,8 @@ class CustomerService {
 
     const collection = await customerRepository.createCollection(payload);
 
-    // Sync to Bank if not CASH
-    if (collection.paymentMode !== 'CASH') {
+    // Sync to Bank if not CASH/OTHER
+    if (collection.paymentMode !== 'CASH' && collection.paymentMode !== 'OTHER') {
       await this._syncCollectionToBank(collection, data.bankAccountId || null, userId);
     }
 
@@ -316,8 +316,8 @@ class CustomerService {
     // Clean up CashBook sync
     await this._cleanupCollectionFromCashBook(collection);
 
-    // Clean up Bank sync if not CASH
-    if (collection.paymentMode !== 'CASH') {
+    // Clean up Bank sync if not CASH/OTHER
+    if (collection.paymentMode !== 'CASH' && collection.paymentMode !== 'OTHER') {
       await this._cleanupCollectionBankSync(collection);
     }
 

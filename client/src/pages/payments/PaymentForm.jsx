@@ -96,7 +96,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         setError('Bank account is required for the UPI portion.');
         return;
       }
-    } else if (form.paymentMode !== 'CASH') {
+    } else if (form.paymentMode !== 'CASH' && form.paymentMode !== 'OTHER') {
       if (!form.bankAccountId) {
         setError('Bank account is required for bank payments.');
         return;
@@ -110,7 +110,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         amount: totalAmount,
         cashAmount: form.paymentMode === 'BOTH' ? parseFloat(form.cashAmount) : null,
         upiAmount: form.paymentMode === 'BOTH' ? parseFloat(form.upiAmount) : null,
-        bankAccountId: (form.paymentMode !== 'CASH' && form.paymentMode !== 'BOTH' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount) > 0)) ? form.bankAccountId : null,
+        bankAccountId: (form.paymentMode !== 'CASH' && form.paymentMode !== 'OTHER' && form.paymentMode !== 'BOTH' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount) > 0)) ? form.bankAccountId : null,
         billId: form.billId || null
       };
       if (initialData) {
@@ -274,7 +274,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         </div>
       )}
 
-      {(form.paymentMode !== 'CASH' && form.paymentMode !== 'BOTH' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount || 0) > 0)) && (
+      {(form.paymentMode !== 'CASH' && form.paymentMode !== 'OTHER' && form.paymentMode !== 'BOTH' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount || 0) > 0)) && (
         <div style={{ marginBottom: 12 }}>
           <FormField label="Select Bank Account *" error={null}>
             <select

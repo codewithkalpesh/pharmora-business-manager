@@ -61,8 +61,8 @@ class PaymentService {
 
     const payment = await paymentRepository.createPayment(payload);
 
-    // Sync payment withdrawal to primary bank account if not CASH
-    if (payment.paymentMode !== 'CASH') {
+    // Sync to Bank if not CASH/OTHER
+    if (payment.paymentMode !== 'CASH' && payment.paymentMode !== 'OTHER') {
       await this._syncPaymentToBank(payment, data.bankAccountId || null, userId);
     }
 
@@ -216,8 +216,8 @@ class PaymentService {
 
     const updated = await paymentRepository.updatePayment(id, payload);
 
-    // Sync updated payment withdrawal to bank if not CASH
-    if (updated.paymentMode !== 'CASH') {
+    // Sync updated payment withdrawal to bank if not CASH/OTHER
+    if (updated.paymentMode !== 'CASH' && updated.paymentMode !== 'OTHER') {
       await this._syncPaymentToBank(updated, data.bankAccountId || null, userId);
     }
 

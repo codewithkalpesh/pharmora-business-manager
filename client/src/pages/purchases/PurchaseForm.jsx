@@ -30,13 +30,13 @@ const billSchema = z.object({
 }).refine(
   (data) => {
     if (data.paidAmount > 0) {
-      if (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
+      if (data.paymentMode !== 'CASH' && data.paymentMode !== 'OTHER' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
       if (data.paymentMode === 'BOTH' && Number(data.upiAmount) > 0 && !data.bankAccountId) return false;
     }
     return true;
   },
   {
-    message: 'Bank account is required for non-cash payments',
+    message: 'Bank account is required for bank payments',
     path: ['bankAccountId'],
   }
 ).refine(
@@ -216,7 +216,7 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
             </div>
           )}
 
-          {(watched.paymentMode !== 'CASH' && watched.paymentMode !== 'BOTH' || (watched.paymentMode === 'BOTH' && Number(watched.upiAmount) > 0)) && (
+          {(watched.paymentMode !== 'CASH' && watched.paymentMode !== 'OTHER' && watched.paymentMode !== 'BOTH' || (watched.paymentMode === 'BOTH' && Number(watched.upiAmount) > 0)) && (
             <div style={{ marginBottom: 12 }}>
               <FormField label="Select Bank Account *" error={errors.bankAccountId?.message}>
                 <select {...register('bankAccountId')} style={{ ...selectBase, ...(errors.bankAccountId ? { borderColor: '#ef4444' } : {}) }}>

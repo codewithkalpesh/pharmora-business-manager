@@ -36,12 +36,12 @@ const schema = z.object({
   }
 ).refine(
   (data) => {
-    if (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
+    if (data.paymentMode !== 'CASH' && data.paymentMode !== 'OTHER' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
     if (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0 && !data.bankAccountId) return false;
     return true;
   },
   {
-    message: 'Bank account is required for non-cash payments',
+    message: 'Bank account is required for bank payments',
     path: ['bankAccountId'],
   }
 );
@@ -179,7 +179,7 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
         notes: data.notes || null,
         cashAmount: data.paymentMode === 'BOTH' ? parseFloat(data.cashAmount) : null,
         upiAmount: data.paymentMode === 'BOTH' ? parseFloat(data.upiAmount) : null,
-        bankAccountId: (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' || (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0)) ? data.bankAccountId : null,
+        bankAccountId: (data.paymentMode !== 'CASH' && data.paymentMode !== 'OTHER' && data.paymentMode !== 'BOTH' || (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0)) ? data.bankAccountId : null,
       };
 
       const res = await customerApi.createCollection(payload);
@@ -373,7 +373,7 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
             </div>
           )}
 
-          {(paymentMode !== 'CASH' && paymentMode !== 'BOTH' || (paymentMode === 'BOTH' && parseFloat(upiAmount || 0) > 0)) && (
+          {(paymentMode !== 'CASH' && paymentMode !== 'OTHER' && paymentMode !== 'BOTH' || (paymentMode === 'BOTH' && parseFloat(upiAmount || 0) > 0)) && (
             <div className="input-group mt-4">
               <label className="input-label">Select Bank Account *</label>
               <select

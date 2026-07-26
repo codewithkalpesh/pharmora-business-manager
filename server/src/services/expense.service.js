@@ -61,8 +61,8 @@ class ExpenseService {
 
     const expense = await expenseRepository.createExpense(payload);
 
-    // Sync payment withdrawal if paymentMode is not CASH
-    if (data.paymentMode !== 'CASH') {
+    // Sync payment withdrawal if not CASH/OTHER
+    if (data.paymentMode !== 'CASH' && data.paymentMode !== 'OTHER') {
       let targetBankAccountId = data.bankAccountId;
       if (!targetBankAccountId) {
         const cashBookService = require('./cashbook.service');
@@ -190,8 +190,8 @@ class ExpenseService {
 
     const updatedExpense = await expenseRepository.updateExpense(id, payload);
 
-    // If paymentMode changed to CASH, delete existing transaction. Else sync
-    if (data.paymentMode === 'CASH') {
+    // If paymentMode changed to CASH or OTHER, delete existing transaction. Else sync
+    if (data.paymentMode === 'CASH' || data.paymentMode === 'OTHER') {
       await this._cleanupExpenseBankSync(existing);
     } else {
       let targetBankAccountId = data.bankAccountId || oldBankAccountId;

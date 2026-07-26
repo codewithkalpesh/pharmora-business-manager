@@ -93,7 +93,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
         setError('Bank account is required for the UPI portion.');
         return;
       }
-    } else if (formData.paymentMode !== 'CASH') {
+    } else if (formData.paymentMode !== 'CASH' && formData.paymentMode !== 'OTHER') {
       if (!formData.bankAccountId) {
         setError('Bank account is required for bank transactions.');
         return;
@@ -106,7 +106,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
       targetAmount: parseFloat(formData.targetAmount || totalAmount),
       cashAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.cashAmount) : null,
       upiAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.upiAmount) : null,
-      bankAccountId: (formData.paymentMode !== 'CASH' && formData.paymentMode !== 'BOTH' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) ? formData.bankAccountId : null,
+      bankAccountId: (formData.paymentMode !== 'CASH' && formData.paymentMode !== 'OTHER' && formData.paymentMode !== 'BOTH' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) ? formData.bankAccountId : null,
     };
     onSubmit(payload);
   };
@@ -207,7 +207,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
           </div>
         )}
 
-        {(formData.paymentMode !== 'CASH' && formData.paymentMode !== 'BOTH' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) && (
+        {(formData.paymentMode !== 'CASH' && formData.paymentMode !== 'OTHER' && formData.paymentMode !== 'BOTH' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) && (
           <div style={{ marginBottom: 12 }}>
             <FormField label="Select Bank Account *">
               <select

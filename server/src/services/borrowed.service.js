@@ -57,7 +57,7 @@ class BorrowedService {
     // Sync to CashBook or Bank Account
     if (item.paymentMode === 'CASH') {
       await this._syncBorrowedToCashBook(item);
-    } else {
+    } else if (item.paymentMode !== 'OTHER') {
       await this._syncBorrowedToBank(item, data.bankAccountId || null);
     }
 
@@ -210,13 +210,13 @@ class BorrowedService {
     // Sync updates to CashBook/Bank Account
     if (oldPaymentMode === 'CASH') {
       await this._cleanupBorrowedFromCashBook({ ...existing, borrowedAmount: oldAmount, borrowDate: oldDate });
-    } else {
+    } else if (oldPaymentMode !== 'OTHER') {
       await this._cleanupBorrowedBankSync({ id, paymentMode: oldPaymentMode });
     }
 
     if (updated.paymentMode === 'CASH') {
       await this._syncBorrowedToCashBook(updated);
-    } else {
+    } else if (updated.paymentMode !== 'OTHER') {
       await this._syncBorrowedToBank(updated, data.bankAccountId || null);
     }
 
@@ -239,7 +239,7 @@ class BorrowedService {
     // Clean up sync
     if (existing.paymentMode === 'CASH') {
       await this._cleanupBorrowedFromCashBook(existing);
-    } else {
+    } else if (existing.paymentMode !== 'OTHER') {
       await this._cleanupBorrowedBankSync(existing);
     }
 
@@ -311,8 +311,8 @@ class BorrowedService {
       status: newStatus,
     });
 
-    // Sync to Bank if not CASH
-    if (repayment.paymentMode !== 'CASH') {
+    // Sync to Bank if not CASH/OTHER
+    if (repayment.paymentMode !== 'CASH' && repayment.paymentMode !== 'OTHER') {
       await this._syncRepaymentToBank(repayment, data.bankAccountId || null, userId);
     }
 
@@ -370,7 +370,7 @@ class BorrowedService {
     }
 
     // Clean up bank sync
-    if (paymentMode !== 'CASH') {
+    if (paymentMode !== 'CASH' && paymentMode !== 'OTHER') {
       await this._cleanupRepaymentBankSync(repayment);
     }
 
