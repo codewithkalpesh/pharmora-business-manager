@@ -134,6 +134,21 @@ class ExpenseService {
           { createdAt: 'desc' }
         ];
 
+    // Compute cumulative running balance for all user expenses chronologically
+    const prisma = require('../config/prisma');
+    const allUserExpenses = await prisma.expense.findMany({
+      where: { createdById: userId },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, amount: true },
+    });
+
+    const runningBalanceMap = new Map();
+    let cumulativeSum = 0;
+    for (const exp of allUserExpenses) {
+      cumulativeSum += Number(exp.amount);
+      runningBalanceMap.set(exp.id, cumulativeSum);
+    }
+
     const { expenses, total } = await expenseRepository.findExpenses({
       skip,
       take: limit,
@@ -141,8 +156,13 @@ class ExpenseService {
       orderBy,
     });
 
+    const expensesWithRunningBal = expenses.map((exp) => ({
+      ...exp,
+      runningBalance: runningBalanceMap.get(exp.id) || Number(exp.amount),
+    }));
+
     return {
-      expenses,
+      expenses: expensesWithRunningBal,
       pagination: {
         total,
         page,

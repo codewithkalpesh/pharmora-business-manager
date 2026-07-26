@@ -94,14 +94,7 @@ export function Expenses() {
     queryClient.invalidateQueries(['expenses-stats']);
   };
 
-  const expenses = useMemo(() => {
-    const list = data?.expenses || [];
-    let running = 0;
-    return list.map((exp) => {
-      running += Number(exp.amount);
-      return { ...exp, runningBalance: running };
-    });
-  }, [data]);
+  const expenses = data?.expenses || [];
   const pagination = data?.pagination || {};
 
   // Top category computation
@@ -272,7 +265,7 @@ export function Expenses() {
                   <th className="p-4">Description</th>
                   <th className="p-4">Category</th>
                   <th className="p-4 text-right">Amount</th>
-                  <th className="p-4">Running Bal.</th>
+                  <th className="p-4 text-right">Running Bal.</th>
                   <th className="p-4">Payment Mode</th>
                   <th className="p-4 text-center">Receipt</th>
                   <th className="p-4 text-center">Actions</th>

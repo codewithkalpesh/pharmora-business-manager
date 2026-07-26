@@ -12,13 +12,17 @@ import CashBookForm from './CashBookForm';
 import { cashBookApi } from '../../api/cashbook.api';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { format } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 
 export function CashBook() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState(null);
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  
+  const initialToday = searchParams.get('filter') === 'today' ? format(new Date(), 'yyyy-MM-dd') : '';
+  const [startDate, setStartDate] = useState(initialToday);
+  const [endDate, setEndDate] = useState(initialToday);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [page, setPage] = useState(1);
 
