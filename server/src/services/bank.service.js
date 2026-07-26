@@ -302,7 +302,10 @@ class BankService {
       where.description = { contains: query.search, mode: 'insensitive' };
     }
 
-    const orderBy = { date: 'desc' };
+    const orderBy = [
+      { date: 'desc' },
+      { createdAt: 'desc' }
+    ];
 
     const { transactions, total } = await bankRepository.findTransactions({
       skip,

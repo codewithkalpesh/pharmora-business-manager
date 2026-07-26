@@ -113,8 +113,14 @@ class PaymentService {
     }
 
     const orderBy = query.sortBy
-      ? { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' }
-      : { paymentDate: 'desc' };
+      ? [
+          { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' },
+          { createdAt: 'desc' }
+        ]
+      : [
+          { paymentDate: 'desc' },
+          { createdAt: 'desc' }
+        ];
 
     const { payments, total } = await paymentRepository.findPayments({ skip, take: limit, where, orderBy });
 

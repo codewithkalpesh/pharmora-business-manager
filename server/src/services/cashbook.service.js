@@ -71,8 +71,14 @@ class CashBookService {
     }
 
     const orderBy = query.sortBy 
-      ? { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' }
-      : { date: 'desc' };
+      ? [
+          { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' },
+          { createdAt: 'desc' }
+        ]
+      : [
+          { date: 'desc' },
+          { createdAt: 'desc' }
+        ];
 
     const { entries, total } = await cashBookRepository.findAll({ skip, take: limit, where, orderBy });
     

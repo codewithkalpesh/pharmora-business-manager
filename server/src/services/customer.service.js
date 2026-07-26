@@ -133,8 +133,14 @@ class CustomerService {
     }
 
     const orderBy = query.sortBy
-      ? { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' }
-      : { date: 'desc' };
+      ? [
+          { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' },
+          { createdAt: 'desc' }
+        ]
+      : [
+          { date: 'desc' },
+          { createdAt: 'desc' }
+        ];
 
     const { credits, total } = await customerRepository.findCredits({
       skip,
@@ -268,8 +274,14 @@ class CustomerService {
     }
 
     const orderBy = query.sortBy
-      ? { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' }
-      : { collectionDate: 'desc' };
+      ? [
+          { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' },
+          { createdAt: 'desc' }
+        ]
+      : [
+          { collectionDate: 'desc' },
+          { createdAt: 'desc' }
+        ];
 
     const { collections, total } = await customerRepository.findCollections({
       skip,

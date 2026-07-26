@@ -222,8 +222,14 @@ class PurchaseService {
     }
 
     const orderBy = query.sortBy
-      ? { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' }
-      : { billDate: 'desc' };
+      ? [
+          { [query.sortBy]: query.sortDesc === 'true' ? 'desc' : 'asc' },
+          { createdAt: 'desc' }
+        ]
+      : [
+          { billDate: 'desc' },
+          { createdAt: 'desc' }
+        ];
 
     const { bills, total } = await purchaseRepository.findBills({
       skip,

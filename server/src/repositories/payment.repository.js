@@ -49,7 +49,10 @@ class PaymentRepository {
       prisma.distributor.findUnique({ where: { id: distributorId } }),
       prisma.purchaseBill.findMany({
         where: { distributorId },
-        orderBy: { billDate: 'desc' },
+        orderBy: [
+          { billDate: 'desc' },
+          { createdAt: 'desc' }
+        ],
         select: {
           id: true,
           invoiceNo: true,
@@ -65,7 +68,10 @@ class PaymentRepository {
       }),
       prisma.distributorPayment.findMany({
         where: { distributorId },
-        orderBy: { paymentDate: 'desc' },
+        orderBy: [
+          { paymentDate: 'desc' },
+          { createdAt: 'desc' }
+        ],
         select: {
           id: true,
           paymentDate: true,

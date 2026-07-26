@@ -172,11 +172,17 @@ class CustomerRepository {
       prisma.customer.findUnique({ where: { id: customerId } }),
       prisma.customerCredit.findMany({
         where: { customerId },
-        orderBy: { date: 'desc' },
+        orderBy: [
+          { date: 'desc' },
+          { createdAt: 'desc' }
+        ],
       }),
       prisma.creditCollection.findMany({
         where: { customerId },
-        orderBy: { collectionDate: 'desc' },
+        orderBy: [
+          { collectionDate: 'desc' },
+          { createdAt: 'desc' }
+        ],
       }),
     ]);
 

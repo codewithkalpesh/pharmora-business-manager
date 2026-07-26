@@ -7,7 +7,10 @@ class BorrowedRepository {
       data,
       include: {
         repayments: {
-          orderBy: { repaymentDate: 'desc' },
+          orderBy: [
+            { repaymentDate: 'desc' },
+            { createdAt: 'desc' }
+          ],
         },
       },
     });
@@ -24,7 +27,10 @@ class BorrowedRepository {
         orderBy,
         include: {
           repayments: {
-            orderBy: { repaymentDate: 'desc' },
+            orderBy: [
+              { repaymentDate: 'desc' },
+              { createdAt: 'desc' }
+            ],
           },
         },
       }),
@@ -39,7 +45,10 @@ class BorrowedRepository {
       where: { id },
       include: {
         repayments: {
-          orderBy: { repaymentDate: 'desc' },
+          orderBy: [
+            { repaymentDate: 'desc' },
+            { createdAt: 'desc' }
+          ],
         },
       },
     });
@@ -51,7 +60,10 @@ class BorrowedRepository {
       data,
       include: {
         repayments: {
-          orderBy: { repaymentDate: 'desc' },
+          orderBy: [
+            { repaymentDate: 'desc' },
+            { createdAt: 'desc' }
+          ],
         },
       },
     });
