@@ -22,7 +22,7 @@ const billSchema = z.object({
   gstAmount: z.coerce.number().min(0, 'Must be positive').default(0),
   discountAmount: z.coerce.number().min(0, 'Must be positive').default(0),
   paidAmount: z.coerce.number().min(0, 'Must be positive').default(0),
-  paymentMode: z.enum(['CASH', 'UPI', 'BOTH']).default('CASH'),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
   bankAccountId: z.string().optional().nullable().or(z.literal('')),
   notes: z.string().optional(),
   cashAmount: z.coerce.number().min(0).optional().nullable(),
@@ -30,13 +30,13 @@ const billSchema = z.object({
 }).refine(
   (data) => {
     if (data.paidAmount > 0) {
-      if (data.paymentMode === 'UPI' && !data.bankAccountId) return false;
+      if (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
       if (data.paymentMode === 'BOTH' && Number(data.upiAmount) > 0 && !data.bankAccountId) return false;
     }
     return true;
   },
   {
-    message: 'Bank account is required for UPI payments',
+    message: 'Bank account is required for non-cash payments',
     path: ['bankAccountId'],
   }
 ).refine(
@@ -196,6 +196,10 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
               <select {...register('paymentMode')} style={{ ...selectBase, ...(errors.paymentMode ? { borderColor: '#ef4444' } : {}) }}>
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI</option>
+                <option value="CARD">Card</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="OTHER">Other</option>
                 <option value="BOTH">Both (Cash and UPI)</option>
               </select>
             </FormField>
@@ -212,7 +216,7 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
             </div>
           )}
 
-          {(watched.paymentMode === 'UPI' || (watched.paymentMode === 'BOTH' && Number(watched.upiAmount) > 0)) && (
+          {(watched.paymentMode !== 'CASH' && watched.paymentMode !== 'BOTH' || (watched.paymentMode === 'BOTH' && Number(watched.upiAmount) > 0)) && (
             <div style={{ marginBottom: 12 }}>
               <FormField label="Select Bank Account *" error={errors.bankAccountId?.message}>
                 <select {...register('bankAccountId')} style={{ ...selectBase, ...(errors.bankAccountId ? { borderColor: '#ef4444' } : {}) }}>

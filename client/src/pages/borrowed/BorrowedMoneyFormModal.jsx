@@ -93,9 +93,9 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
         setError('Bank account is required for the UPI portion.');
         return;
       }
-    } else if (formData.paymentMode === 'UPI') {
+    } else if (formData.paymentMode !== 'CASH') {
       if (!formData.bankAccountId) {
-        setError('Bank account is required for UPI transactions.');
+        setError('Bank account is required for bank transactions.');
         return;
       }
     }
@@ -106,7 +106,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
       targetAmount: parseFloat(formData.targetAmount || totalAmount),
       cashAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.cashAmount) : null,
       upiAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.upiAmount) : null,
-      bankAccountId: (formData.paymentMode === 'UPI' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) ? formData.bankAccountId : null,
+      bankAccountId: (formData.paymentMode !== 'CASH' && formData.paymentMode !== 'BOTH' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) ? formData.bankAccountId : null,
     };
     onSubmit(payload);
   };
@@ -169,6 +169,10 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
             >
               <option value="CASH">Cash</option>
               <option value="UPI">UPI</option>
+              <option value="CARD">Card</option>
+              <option value="CHEQUE">Cheque</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="OTHER">Other</option>
               <option value="BOTH">Both (Cash & UPI)</option>
             </select>
           </FormField>
@@ -203,7 +207,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
           </div>
         )}
 
-        {(formData.paymentMode === 'UPI' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) && (
+        {(formData.paymentMode !== 'CASH' && formData.paymentMode !== 'BOTH' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) && (
           <div style={{ marginBottom: 12 }}>
             <FormField label="Select Bank Account *">
               <select

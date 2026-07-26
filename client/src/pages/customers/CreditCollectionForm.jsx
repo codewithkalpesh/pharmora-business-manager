@@ -14,7 +14,7 @@ const schema = z.object({
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
     message: 'Amount must be a positive number',
   }),
-  paymentMode: z.enum(['CASH', 'UPI', 'BOTH']).default('CASH'),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
   referenceNo: z.string().max(100).optional().nullable().or(z.literal('')),
   notes: z.string().max(500).optional().nullable().or(z.literal('')),
   cashAmount: z.string().optional().nullable().or(z.literal('')),
@@ -36,12 +36,12 @@ const schema = z.object({
   }
 ).refine(
   (data) => {
-    if (data.paymentMode === 'UPI' && !data.bankAccountId) return false;
+    if (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' && !data.bankAccountId) return false;
     if (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0 && !data.bankAccountId) return false;
     return true;
   },
   {
-    message: 'Bank account is required for UPI payments',
+    message: 'Bank account is required for non-cash payments',
     path: ['bankAccountId'],
   }
 );
@@ -179,7 +179,7 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
         notes: data.notes || null,
         cashAmount: data.paymentMode === 'BOTH' ? parseFloat(data.cashAmount) : null,
         upiAmount: data.paymentMode === 'BOTH' ? parseFloat(data.upiAmount) : null,
-        bankAccountId: (data.paymentMode === 'UPI' || (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0)) ? data.bankAccountId : null,
+        bankAccountId: (data.paymentMode !== 'CASH' && data.paymentMode !== 'BOTH' || (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0)) ? data.bankAccountId : null,
       };
 
       const res = await customerApi.createCollection(payload);
@@ -324,6 +324,10 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
               >
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI</option>
+                <option value="CARD">Card</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="OTHER">Other</option>
                 <option value="BOTH">Both (Cash & UPI)</option>
               </select>
               {errors.paymentMode && <p className="text-xs text-red-455 mt-1">{errors.paymentMode.message}</p>}
@@ -369,7 +373,7 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
             </div>
           )}
 
-          {(paymentMode === 'UPI' || (paymentMode === 'BOTH' && parseFloat(upiAmount || 0) > 0)) && (
+          {(paymentMode !== 'CASH' && paymentMode !== 'BOTH' || (paymentMode === 'BOTH' && parseFloat(upiAmount || 0) > 0)) && (
             <div className="input-group mt-4">
               <label className="input-label">Select Bank Account *</label>
               <select

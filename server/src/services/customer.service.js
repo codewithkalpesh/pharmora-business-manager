@@ -225,8 +225,8 @@ class CustomerService {
 
     const collection = await customerRepository.createCollection(payload);
 
-    // Sync to Bank if UPI
-    if (collection.paymentMode === 'UPI') {
+    // Sync to Bank if not CASH
+    if (collection.paymentMode !== 'CASH') {
       await this._syncCollectionToBank(collection, data.bankAccountId || null, userId);
     }
 
@@ -304,8 +304,8 @@ class CustomerService {
     // Clean up CashBook sync
     await this._cleanupCollectionFromCashBook(collection);
 
-    // Clean up Bank sync if UPI
-    if (collection.paymentMode === 'UPI') {
+    // Clean up Bank sync if not CASH
+    if (collection.paymentMode !== 'CASH') {
       await this._cleanupCollectionBankSync(collection);
     }
 

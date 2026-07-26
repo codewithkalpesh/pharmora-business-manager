@@ -10,7 +10,16 @@ import {
   errorBannerStyle, formFooterStyle, useInputStyle,
 } from '../../components/common/FormField';
 
-const PAYMENT_MODES = ['CASH', 'UPI', 'BOTH'];
+const PAYMENT_MODES = ['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER'];
+const MODE_LABELS = {
+  CASH: 'Cash',
+  UPI: 'UPI',
+  BOTH: 'Both (Cash & UPI)',
+  CARD: 'Card',
+  CHEQUE: 'Cheque',
+  BANK_TRANSFER: 'Bank Transfer',
+  OTHER: 'Other'
+};
 const today = () => new Date().toISOString().split('T')[0];
 
 export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, prefillBillId = null, initialData = null }) {
@@ -87,9 +96,9 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         setError('Bank account is required for the UPI portion.');
         return;
       }
-    } else if (form.paymentMode === 'UPI') {
+    } else if (form.paymentMode !== 'CASH') {
       if (!form.bankAccountId) {
-        setError('Bank account is required for UPI payments.');
+        setError('Bank account is required for bank payments.');
         return;
       }
     }
@@ -101,7 +110,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         amount: totalAmount,
         cashAmount: form.paymentMode === 'BOTH' ? parseFloat(form.cashAmount) : null,
         upiAmount: form.paymentMode === 'BOTH' ? parseFloat(form.upiAmount) : null,
-        bankAccountId: (form.paymentMode === 'UPI' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount) > 0)) ? form.bankAccountId : null,
+        bankAccountId: (form.paymentMode !== 'CASH' && form.paymentMode !== 'BOTH' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount) > 0)) ? form.bankAccountId : null,
         billId: form.billId || null
       };
       if (initialData) {
@@ -230,7 +239,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         <FormField label="Payment Mode" error={null}>
           <select value={form.paymentMode} onChange={(e) => set('paymentMode', e.target.value)} style={selectBase}>
             {PAYMENT_MODES.map((m) => (
-              <option key={m} value={m}>{m === 'BOTH' ? 'Both (Cash & UPI)' : m}</option>
+              <option key={m} value={m}>{MODE_LABELS[m] || m}</option>
             ))}
           </select>
         </FormField>
@@ -265,7 +274,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         </div>
       )}
 
-      {(form.paymentMode === 'UPI' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount || 0) > 0)) && (
+      {(form.paymentMode !== 'CASH' && form.paymentMode !== 'BOTH' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount || 0) > 0)) && (
         <div style={{ marginBottom: 12 }}>
           <FormField label="Select Bank Account *" error={null}>
             <select
