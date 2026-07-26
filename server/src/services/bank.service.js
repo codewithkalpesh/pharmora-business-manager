@@ -204,6 +204,62 @@ class BankService {
     const delta = data.type === 'DEPOSIT' ? amount : -amount;
     await bankRepository.adjustBalance(data.accountId, delta);
 
+    // If it's a cash deposit from drawer, sync with CashBook
+    if (data.type === 'DEPOSIT' && data.description && data.description.includes('[CashToBank]')) {
+      const prisma = require('../config/prisma');
+      const txnDate = new Date(data.date);
+      const startOfDay = new Date(txnDate);
+      startOfDay.setUTCHours(0, 0, 0, 0);
+      const endOfDay = new Date(txnDate);
+      endOfDay.setUTCHours(23, 59, 59, 999);
+
+      let cashBook = await prisma.cashBook.findFirst({
+        where: {
+          createdById: userId,
+          date: { gte: startOfDay, lte: endOfDay }
+        }
+      });
+
+      if (cashBook) {
+        const newDeposit = Number(cashBook.bankDeposit) + amount;
+        const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - Number(cashBook.totalExpenses) - newDeposit;
+        const newDiff = Number(cashBook.closingCash) - expectedClosing;
+
+        await prisma.cashBook.update({
+          where: { id: cashBook.id },
+          data: {
+            bankDeposit: newDeposit,
+            cashDifference: newDiff
+          }
+        });
+      } else {
+        const prevEntry = await prisma.cashBook.findFirst({
+          where: { createdById: userId, date: { lt: startOfDay } },
+          orderBy: { date: 'desc' }
+        });
+        const suggestedOpening = prevEntry ? Number(prevEntry.closingCash) : 0;
+        const expectedClosing = suggestedOpening - amount;
+        const cashDifference = 0 - expectedClosing;
+
+        await prisma.cashBook.create({
+          data: {
+            date: startOfDay,
+            openingCash: suggestedOpening,
+            cashSales: 0,
+            upiReceipts: 0,
+            cardReceipts: 0,
+            otherIncome: 0,
+            totalExpenses: 0,
+            bankDeposit: amount,
+            closingCash: 0,
+            cashDifference,
+            notes: `Auto-created from Cash to Bank Deposit.`,
+            createdById: userId
+          }
+        });
+      }
+    }
+
     // For transfers, also update destination
     if (data.type === 'TRANSFER' && data.transferToId) {
       await bankRepository.adjustBalance(data.transferToId, amount);
@@ -268,6 +324,37 @@ class BankService {
     // Reverse the balance change
     if (txn.type === 'DEPOSIT') {
       await bankRepository.adjustBalance(txn.accountId, -Number(txn.amount));
+
+      // Reverse CashBook sync if tagged
+      if (txn.description && txn.description.includes('[CashToBank]')) {
+        const prisma = require('../config/prisma');
+        const txnDate = new Date(txn.date);
+        const startOfDay = new Date(txnDate);
+        startOfDay.setUTCHours(0, 0, 0, 0);
+        const endOfDay = new Date(txnDate);
+        endOfDay.setUTCHours(23, 59, 59, 999);
+
+        let cashBook = await prisma.cashBook.findFirst({
+          where: {
+            createdById: txn.createdById,
+            date: { gte: startOfDay, lte: endOfDay }
+          }
+        });
+
+        if (cashBook) {
+          const newDeposit = Math.max(0, Number(cashBook.bankDeposit) - Number(txn.amount));
+          const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - Number(cashBook.totalExpenses) - newDeposit;
+          const newDiff = Number(cashBook.closingCash) - expectedClosing;
+
+          await prisma.cashBook.update({
+            where: { id: cashBook.id },
+            data: {
+              bankDeposit: newDeposit,
+              cashDifference: newDiff
+            }
+          });
+        }
+      }
     } else if (txn.type === 'WITHDRAWAL') {
       await bankRepository.adjustBalance(txn.accountId, Number(txn.amount));
     } else if (txn.type === 'TRANSFER') {

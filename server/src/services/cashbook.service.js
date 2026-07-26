@@ -374,7 +374,7 @@ class CashBookService {
     });
 
     if (cashBook) {
-      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - cashExpenses;
+      const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - cashExpenses - Number(cashBook.bankDeposit);
       const cashDifference = Number(cashBook.closingCash) - expectedClosing;
 
       await prisma.cashBook.update({

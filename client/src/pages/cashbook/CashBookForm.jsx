@@ -101,15 +101,16 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
   const cashSales     = Number(watched.cashSales) || 0;
   const closingCash   = Number(watched.closingCash) || 0;
   const totalExpenses = Number(watched.totalExpenses) || 0;
-  const expectedClosing = openingCash + cashSales - totalExpenses;
+  const bankDeposit   = Number(watched.bankDeposit) || 0;
+  const expectedClosing = openingCash + cashSales - totalExpenses - bankDeposit;
   const difference    = closingCash - expectedClosing;
 
   useEffect(() => {
     if (!isEdit || dirtyFields.cashSales || dirtyFields.openingCash) {
-      const calculatedClosing = Math.max(0, openingCash + cashSales - totalExpenses);
+      const calculatedClosing = Math.max(0, openingCash + cashSales - totalExpenses - bankDeposit);
       setValue('closingCash', calculatedClosing);
     }
-  }, [cashSales, totalExpenses, openingCash, isEdit, dirtyFields.cashSales, dirtyFields.openingCash, setValue]);
+  }, [cashSales, totalExpenses, openingCash, bankDeposit, isEdit, dirtyFields.cashSales, dirtyFields.openingCash, setValue]);
 
   useEffect(() => {
     if (!isEdit && watched.date) {
@@ -139,7 +140,7 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         cardReceipts: 0,
         otherIncome: 0,
         totalExpenses: values.totalExpenses || 0,
-        bankDeposit: 0,
+        bankDeposit: values.bankDeposit || 0,
         cashDifference: difference,
       };
       if (isEdit) {
@@ -212,18 +213,27 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         </Field>
       </div>
 
-      {/* Row 2: Cash in Drawer & Total Expenses (Auto) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      {/* Row 2: Cash in Drawer & Total Expenses (Auto) & Bank Deposit */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
         <Field label="Cash in Drawer" icon={PiggyBank} iconColor="#f59e0b" error={errors.closingCash?.message}>
           <input type="number" step="0.01" {...regWithFocus('closingCash', register('closingCash'))} />
         </Field>
-        <Field label="Total Expenses (Auto)" icon={TrendingDown} iconColor="#ef4444" error={errors.totalExpenses?.message}>
+        <Field label="Expenses (Auto)" icon={TrendingDown} iconColor="#ef4444" error={errors.totalExpenses?.message}>
           <input
             type="number"
             step="0.01"
             readOnly
             style={{ ...inputStyle(false), color: '#64748b', cursor: 'not-allowed', background: '#f1f5f9' }}
             {...register('totalExpenses')}
+          />
+        </Field>
+        <Field label="Bank Deposit" icon={ArrowUpFromLine} iconColor="#8b5cf6" error={errors.bankDeposit?.message}>
+          <input
+            type="number"
+            step="0.01"
+            readOnly
+            style={{ ...inputStyle(false), color: '#64748b', cursor: 'not-allowed', background: '#f1f5f9' }}
+            {...register('bankDeposit')}
           />
         </Field>
       </div>
@@ -242,7 +252,7 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
           <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
             ₹{expectedClosing.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Opening + Sales - Expenses</div>
+          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Opening + Sales - Expenses - Deposit</div>
         </div>
 
         {/* Actual Drawer Cash */}

@@ -9,7 +9,7 @@ import { formatCurrency } from '../../lib/utils';
 
 const schema = z.object({
   accountId: z.string().min(1, 'Source account is required'),
-  type: z.enum(['DEPOSIT', 'WITHDRAWAL', 'TRANSFER']),
+  type: z.enum(['DEPOSIT', 'WITHDRAWAL', 'TRANSFER', 'CASH_DEPOSIT']),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   amount: z.string().refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
     message: 'Amount must be positive',
@@ -76,12 +76,13 @@ export function BankTransactionForm({ isOpen, onClose, onSuccess }) {
     setError(null);
     setLoading(true);
     try {
+      const isCashDeposit = data.type === 'CASH_DEPOSIT';
       const payload = {
         accountId: data.accountId,
-        type: data.type,
+        type: isCashDeposit ? 'DEPOSIT' : data.type,
         date: data.date,
         amount: parseFloat(data.amount),
-        description: data.description,
+        description: isCashDeposit ? `[CashToBank] ${data.description}` : data.description,
         referenceNo: data.referenceNo || null,
         transferToId: data.type === 'TRANSFER' ? data.transferToId : null,
       };
@@ -102,7 +103,7 @@ export function BankTransactionForm({ isOpen, onClose, onSuccess }) {
           <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>
         )}
 
-        <div className="input-group">
+         <div className="input-group">
           <label className="input-label">Transaction Type *</label>
           <select
             {...register('type')}
@@ -111,6 +112,7 @@ export function BankTransactionForm({ isOpen, onClose, onSuccess }) {
             <option value="DEPOSIT">Deposit</option>
             <option value="WITHDRAWAL">Withdrawal</option>
             <option value="TRANSFER">Inter-Bank Transfer</option>
+            <option value="CASH_DEPOSIT">Cash from Drawer into Bank/UPI</option>
           </select>
         </div>
 
