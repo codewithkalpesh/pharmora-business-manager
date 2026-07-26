@@ -1,4 +1,3 @@
-// src/pages/borrowed/RepaymentModal.jsx
 import React, { useState, useEffect } from 'react';
 import Modal from '../../components/common/Modal';
 import {
@@ -6,14 +5,20 @@ import {
   formFooterStyle,
 } from '../../components/common/FormField';
 import { formatCurrency } from '../../lib/utils';
+import { bankApi } from '../../api/bank.api';
 
 export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, activeItems = [], loading }) {
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     amount: '',
     repaymentDate: new Date().toISOString().split('T')[0],
     paymentMode: 'CASH',
     referenceNo: '',
     notes: '',
+    cashAmount: '',
+    upiAmount: '',
+    bankAccountId: '',
   });
 
   const [selectedId, setSelectedId] = useState('');
@@ -30,6 +35,9 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, active
           paymentMode: 'CASH',
           referenceNo: '',
           notes: '',
+          cashAmount: '',
+          upiAmount: '',
+          bankAccountId: '',
         });
       } else if (activeItems && activeItems.length > 0) {
         const firstItem = activeItems[0];
@@ -41,6 +49,9 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, active
           paymentMode: 'CASH',
           referenceNo: '',
           notes: '',
+          cashAmount: '',
+          upiAmount: '',
+          bankAccountId: '',
         });
       } else {
         setSelectedId('');
@@ -50,10 +61,20 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, active
           paymentMode: 'CASH',
           referenceNo: '',
           notes: '',
+          cashAmount: '',
+          upiAmount: '',
+          bankAccountId: '',
         });
       }
+      setError('');
     }
   }, [borrowedItem, activeItems, isOpen]);
+
+  useEffect(() => {
+    bankApi.getAccounts().then((r) => {
+      setBankAccounts(r.data?.accounts || []);
+    });
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -80,12 +101,40 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, active
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    setError('');
     const itemId = currentItem?.id;
     if (!itemId) {
-      alert('Please select a record.');
+      setError('Please select a record.');
       return;
     }
-    onSubmit(formData, itemId);
+
+    const totalAmount = parseFloat(formData.amount || 0);
+    if (formData.paymentMode === 'BOTH') {
+      const cash = parseFloat(formData.cashAmount || 0);
+      const upi = parseFloat(formData.upiAmount || 0);
+      if (Math.abs(cash + upi - totalAmount) > 0.01) {
+        setError('Cash and UPI amounts must sum up to the total repayment amount.');
+        return;
+      }
+      if (upi > 0 && !formData.bankAccountId) {
+        setError('Bank account is required for the UPI portion.');
+        return;
+      }
+    } else if (formData.paymentMode === 'UPI') {
+      if (!formData.bankAccountId) {
+        setError('Bank account is required for UPI payments.');
+        return;
+      }
+    }
+
+    const payload = {
+      ...formData,
+      amount: totalAmount,
+      cashAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.cashAmount) : null,
+      upiAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.upiAmount) : null,
+      bankAccountId: (formData.paymentMode === 'UPI' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) ? formData.bankAccountId : null,
+    };
+    onSubmit(payload, itemId);
   };
 
   if (!isOpen) return null;
@@ -136,6 +185,20 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, active
       size="sm"
     >
       <form onSubmit={handleSubmit}>
+        {error && (
+          <div style={{
+            background: 'rgba(239,68,68,0.06)',
+            border: '1.5px solid rgba(239,68,68,0.2)',
+            color: '#dc2626',
+            padding: '10px 14px',
+            borderRadius: 12,
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            marginBottom: 14,
+          }}>
+            {error}
+          </div>
+        )}
         {/* Lender selection dropdown (Only when no specific borrowedItem is passed) */}
         {!borrowedItem && (
           <div style={{ marginBottom: 12 }}>
@@ -226,13 +289,60 @@ export function RepaymentModal({ isOpen, onClose, onSubmit, borrowedItem, active
             >
               <option value="CASH">Cash</option>
               <option value="UPI">UPI</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="CARD">Card</option>
-              <option value="OTHER">Other</option>
+              <option value="BOTH">Both (Cash & UPI)</option>
             </select>
           </FormField>
         </div>
+
+        {formData.paymentMode === 'BOTH' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <FormField label="Cash Amount (₹) *">
+              <input
+                type="number"
+                name="cashAmount"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={formData.cashAmount}
+                onChange={handleChange}
+                style={inputBase}
+              />
+            </FormField>
+            <FormField label="UPI Amount (₹) *">
+              <input
+                type="number"
+                name="upiAmount"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={formData.upiAmount}
+                onChange={handleChange}
+                style={inputBase}
+              />
+            </FormField>
+          </div>
+        )}
+
+        {(formData.paymentMode === 'UPI' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) && (
+          <div style={{ marginBottom: 12 }}>
+            <FormField label="Select Bank Account *">
+              <select
+                name="bankAccountId"
+                value={formData.bankAccountId}
+                onChange={handleChange}
+                required
+                style={selectBase}
+              >
+                <option value="">Select Account</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+        )}
 
         {/* Reference No */}
         <div style={{ marginBottom: 12 }}>

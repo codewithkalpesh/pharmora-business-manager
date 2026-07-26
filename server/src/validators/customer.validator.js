@@ -21,9 +21,12 @@ const creditCollectionSchema = z.object({
   customerCreditId: z.string().optional().nullable(),
   collectionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Collection date must be in YYYY-MM-DD format'),
   amount: z.number().positive('Amount must be positive'),
-  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
   referenceNo: z.string().max(100).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
+  cashAmount: z.number().optional().nullable(),
+  upiAmount: z.number().optional().nullable(),
+  bankAccountId: z.string().optional().nullable(),
 });
 
 module.exports = {

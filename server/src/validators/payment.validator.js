@@ -1,7 +1,7 @@
 // src/validators/payment.validator.js
 const { z } = require('zod');
 
-const paymentModes = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER'];
+const paymentModes = ['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER'];
 
 const createPaymentSchema = z.object({
   distributorId: z.string().min(1, 'Distributor is required'),
@@ -13,6 +13,9 @@ const createPaymentSchema = z.object({
   paymentMode: z.enum(paymentModes).default('CASH'),
   referenceNo: z.string().max(100).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
+  cashAmount: z.number().optional().nullable(),
+  upiAmount: z.number().optional().nullable(),
+  bankAccountId: z.string().optional().nullable(),
 });
 
 const updatePaymentSchema = z.object({
@@ -23,6 +26,9 @@ const updatePaymentSchema = z.object({
   paymentMode: z.enum(paymentModes).optional(),
   referenceNo: z.string().max(100).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
+  cashAmount: z.number().optional().nullable(),
+  upiAmount: z.number().optional().nullable(),
+  bankAccountId: z.string().optional().nullable(),
 });
 
 module.exports = { createPaymentSchema, updatePaymentSchema };

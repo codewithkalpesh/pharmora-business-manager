@@ -1,12 +1,14 @@
-// src/pages/borrowed/BorrowedMoneyFormModal.jsx
 import React, { useState, useEffect } from 'react';
 import Modal from '../../components/common/Modal';
 import {
   FormField, inputBase, selectBase, cancelBtnStyle, submitBtnStyle,
   formFooterStyle,
 } from '../../components/common/FormField';
+import { bankApi } from '../../api/bank.api';
 
 export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData, loading }) {
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     personName: '',
     phone: '',
@@ -16,6 +18,9 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
     targetDate: '',
     paymentMode: 'CASH',
     notes: '',
+    cashAmount: '',
+    upiAmount: '',
+    bankAccountId: '',
   });
 
   useEffect(() => {
@@ -33,6 +38,9 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
           : '',
         paymentMode: initialData.paymentMode || 'CASH',
         notes: initialData.notes || '',
+        cashAmount: initialData.cashAmount || '',
+        upiAmount: initialData.upiAmount || '',
+        bankAccountId: initialData.bankAccountId || '',
       });
     } else {
       setFormData({
@@ -44,9 +52,19 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
         targetDate: '',
         paymentMode: 'CASH',
         notes: '',
+        cashAmount: '',
+        upiAmount: '',
+        bankAccountId: '',
       });
     }
+    setError('');
   }, [initialData, isOpen]);
+
+  useEffect(() => {
+    bankApi.getAccounts().then((r) => {
+      setBankAccounts(r.data?.accounts || []);
+    });
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,7 +79,36 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    setError('');
+
+    const totalAmount = parseFloat(formData.borrowedAmount || 0);
+    if (formData.paymentMode === 'BOTH') {
+      const cash = parseFloat(formData.cashAmount || 0);
+      const upi = parseFloat(formData.upiAmount || 0);
+      if (Math.abs(cash + upi - totalAmount) > 0.01) {
+        setError('Cash and UPI amounts must sum up to the total borrowed amount.');
+        return;
+      }
+      if (upi > 0 && !formData.bankAccountId) {
+        setError('Bank account is required for the UPI portion.');
+        return;
+      }
+    } else if (formData.paymentMode === 'UPI') {
+      if (!formData.bankAccountId) {
+        setError('Bank account is required for UPI transactions.');
+        return;
+      }
+    }
+
+    const payload = {
+      ...formData,
+      borrowedAmount: totalAmount,
+      targetAmount: parseFloat(formData.targetAmount || totalAmount),
+      cashAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.cashAmount) : null,
+      upiAmount: formData.paymentMode === 'BOTH' ? parseFloat(formData.upiAmount) : null,
+      bankAccountId: (formData.paymentMode === 'UPI' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) ? formData.bankAccountId : null,
+    };
+    onSubmit(payload);
   };
 
   return (
@@ -72,6 +119,20 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
       size="md"
     >
       <form onSubmit={handleSubmit}>
+        {error && (
+          <div style={{
+            background: 'rgba(239,68,68,0.06)',
+            border: '1.5px solid rgba(239,68,68,0.2)',
+            color: '#dc2626',
+            padding: '10px 14px',
+            borderRadius: 12,
+            fontSize: '0.8125rem',
+            fontWeight: 600,
+            marginBottom: 14,
+          }}>
+            {error}
+          </div>
+        )}
         {/* Person Name */}
         <div style={{ marginBottom: 12 }}>
           <FormField label="Lender / Person Name *">
@@ -108,13 +169,60 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
             >
               <option value="CASH">Cash</option>
               <option value="UPI">UPI</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="CARD">Card</option>
-              <option value="OTHER">Other</option>
+              <option value="BOTH">Both (Cash & UPI)</option>
             </select>
           </FormField>
         </div>
+
+        {formData.paymentMode === 'BOTH' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <FormField label="Cash Amount (₹) *">
+              <input
+                type="number"
+                name="cashAmount"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={formData.cashAmount}
+                onChange={handleChange}
+                style={inputBase}
+              />
+            </FormField>
+            <FormField label="UPI Amount (₹) *">
+              <input
+                type="number"
+                name="upiAmount"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={formData.upiAmount}
+                onChange={handleChange}
+                style={inputBase}
+              />
+            </FormField>
+          </div>
+        )}
+
+        {(formData.paymentMode === 'UPI' || (formData.paymentMode === 'BOTH' && parseFloat(formData.upiAmount || 0) > 0)) && (
+          <div style={{ marginBottom: 12 }}>
+            <FormField label="Select Bank Account *">
+              <select
+                name="bankAccountId"
+                value={formData.bankAccountId}
+                onChange={handleChange}
+                required
+                style={selectBase}
+              >
+                <option value="">Select Account</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          </div>
+        )}
 
         {/* Row 2: Borrowed Amount + Target Payback Amount */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>

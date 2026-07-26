@@ -47,9 +47,11 @@ const createBillSchema = z.object({
   gstAmount: decimal.optional().default(0),
   discountAmount: decimal.optional().default(0),
   paidAmount: decimal.optional().default(0),
-  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).optional().default('CASH'),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).optional().default('CASH'),
   bankAccountId: optionalString,
   notes: optionalString,
+  cashAmount: z.preprocess((val) => (typeof val === 'string' && val !== '' ? parseFloat(val) : val), z.number().optional().nullable()),
+  upiAmount: z.preprocess((val) => (typeof val === 'string' && val !== '' ? parseFloat(val) : val), z.number().optional().nullable()),
 });
 
 const updateBillSchema = createBillSchema.partial();

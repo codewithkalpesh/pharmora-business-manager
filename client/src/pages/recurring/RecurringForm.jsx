@@ -15,11 +15,13 @@ const schema = z.object({
   type: z.enum(['INCOME', 'EXPENSE']),
   frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY', 'CUSTOM']),
   action: z.enum(['REMINDER_ONLY', 'AUTO_DRAFT']),
-  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH']),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be YYYY-MM-DD'),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be YYYY-MM-DD').optional().nullable().or(z.literal('')),
   customDays: z.string().optional().nullable().or(z.literal('')),
   isActive: z.boolean().default(true),
+  cashAmount: z.string().optional().nullable().or(z.literal('')),
+  upiAmount: z.string().optional().nullable().or(z.literal('')),
 }).refine(
   (data) => {
     if (data.frequency === 'CUSTOM') {
@@ -31,6 +33,20 @@ const schema = z.object({
   {
     message: 'Custom days is required and must be positive when frequency is CUSTOM',
     path: ['customDays'],
+  }
+).refine(
+  (data) => {
+    if (data.paymentMode === 'BOTH') {
+      const total = parseFloat(data.amount);
+      const cash = parseFloat(data.cashAmount || 0);
+      const upi = parseFloat(data.upiAmount || 0);
+      if (Math.abs(cash + upi - total) > 0.01) return false;
+    }
+    return true;
+  },
+  {
+    message: 'Cash and UPI amounts must sum up to the total amount',
+    path: ['cashAmount'],
   }
 );
 
@@ -60,16 +76,30 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
       endDate: '',
       customDays: '',
       isActive: true,
+      cashAmount: '',
+      upiAmount: '',
     },
   });
 
   const selectedFrequency = watch('frequency');
+  const paymentMode = watch('paymentMode');
 
   useEffect(() => {
     if (schedule) {
+      let cashVal = '';
+      let upiVal = '';
+      let cleanDesc = schedule.description || '';
+      if (schedule.paymentMode === 'BOTH' && schedule.description) {
+        const match = schedule.description.match(/\[BOTH:cash=([\d.]+),upi=([\d.]+)\]/);
+        if (match) {
+          cashVal = match[1];
+          upiVal = match[2];
+          cleanDesc = schedule.description.replace(/\[BOTH:cash=[\d.]+,upi=[\d.]+\]\s*/, '');
+        }
+      }
       reset({
         title: schedule.title || '',
-        description: schedule.description || '',
+        description: cleanDesc,
         amount: String(schedule.amount || ''),
         type: schedule.type || 'EXPENSE',
         frequency: schedule.frequency || 'MONTHLY',
@@ -79,6 +109,8 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
         endDate: schedule.endDate ? new Date(schedule.endDate).toISOString().split('T')[0] : '',
         customDays: schedule.customDays ? String(schedule.customDays) : '',
         isActive: schedule.isActive !== undefined ? schedule.isActive : true,
+        cashAmount: cashVal,
+        upiAmount: upiVal,
       });
     } else {
       reset({
@@ -93,6 +125,8 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
         endDate: '',
         customDays: '',
         isActive: true,
+        cashAmount: '',
+        upiAmount: '',
       });
     }
     setError(null);
@@ -102,9 +136,13 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
     setError(null);
     setLoading(true);
     try {
+      let desc = data.description || '';
+      if (data.paymentMode === 'BOTH') {
+        desc = `[BOTH:cash=${data.cashAmount},upi=${data.upiAmount}] ${desc}`.trim();
+      }
       const payload = {
         title: data.title,
-        description: data.description || null,
+        description: desc || null,
         amount: parseFloat(data.amount),
         type: data.type,
         frequency: data.frequency,
@@ -176,10 +214,7 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
             <select {...register('paymentMode')} className="input">
               <option value="CASH">Cash</option>
               <option value="UPI">UPI</option>
-              <option value="CARD">Card</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="OTHER">Other</option>
+              <option value="BOTH">Both (Cash & UPI)</option>
             </select>
           </div>
 
@@ -191,6 +226,34 @@ export function RecurringForm({ isOpen, onClose, onSuccess, schedule = null }) {
             </select>
           </div>
         </div>
+
+        {paymentMode === 'BOTH' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="input-group">
+              <label className="input-label">Cash Amount (₹) *</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register('cashAmount')}
+                className={`input ${errors.cashAmount ? 'input-error' : ''}`}
+                placeholder="0.00"
+              />
+              {errors.cashAmount && <p className="text-xs text-red-455 mt-1">{errors.cashAmount.message}</p>}
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">UPI Amount (₹) *</label>
+              <input
+                type="number"
+                step="0.01"
+                {...register('upiAmount')}
+                className={`input ${errors.upiAmount ? 'input-error' : ''}`}
+                placeholder="0.00"
+              />
+              {errors.upiAmount && <p className="text-xs text-red-455 mt-1">{errors.upiAmount.message}</p>}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="input-group">

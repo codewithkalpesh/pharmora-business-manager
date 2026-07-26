@@ -131,23 +131,58 @@ class PurchaseService {
       const mode = data.paymentMode || 'CASH';
       const prisma = require('../config/prisma');
 
-      // Create linked DistributorPayment
-      await prisma.distributorPayment.create({
-        data: {
-          distributorId: bill.distributorId,
-          billId: bill.id,
-          paymentDate: bill.billDate,
-          amount: paidAmount,
-          paymentMode: mode,
-          notes: `Advance Payment for Invoice #${bill.invoiceNo}`,
-          createdById: userId,
-        }
-      });
+      if (mode === 'BOTH') {
+        const cashAmount = parseFloat(data.cashAmount || 0);
+        const upiAmount = parseFloat(data.upiAmount || 0);
 
-      if (mode === 'CASH') {
-        await this._syncPurchaseToCashBook(bill);
+        if (cashAmount > 0) {
+          await prisma.distributorPayment.create({
+            data: {
+              distributorId: bill.distributorId,
+              billId: bill.id,
+              paymentDate: bill.billDate,
+              amount: cashAmount,
+              paymentMode: 'CASH',
+              notes: `Advance Payment (Cash Portion) for Invoice #${bill.invoiceNo}`,
+              createdById: userId,
+            }
+          });
+          await this._syncPurchaseToCashBook(bill, cashAmount);
+        }
+
+        if (upiAmount > 0) {
+          await prisma.distributorPayment.create({
+            data: {
+              distributorId: bill.distributorId,
+              billId: bill.id,
+              paymentDate: bill.billDate,
+              amount: upiAmount,
+              paymentMode: 'UPI',
+              notes: `Advance Payment (UPI Portion) for Invoice #${bill.invoiceNo}`,
+              createdById: userId,
+            }
+          });
+          await this._syncPurchaseToBank(bill, 'UPI', data.bankAccountId, userId, upiAmount);
+        }
       } else {
-        await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
+        // Create linked DistributorPayment
+        await prisma.distributorPayment.create({
+          data: {
+            distributorId: bill.distributorId,
+            billId: bill.id,
+            paymentDate: bill.billDate,
+            amount: paidAmount,
+            paymentMode: mode,
+            notes: `Advance Payment for Invoice #${bill.invoiceNo}`,
+            createdById: userId,
+          }
+        });
+
+        if (mode === 'CASH') {
+          await this._syncPurchaseToCashBook(bill);
+        } else {
+          await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
+        }
       }
 
       // Recalculate bill status & paidAmount (ensures state consistency)
@@ -244,24 +279,69 @@ class PurchaseService {
 
     const bill = await purchaseRepository.updateBill(id, payload);
 
-    // Sync linked DistributorPayment
+    // Clean up previous syncs
     const prisma = require('../config/prisma');
-    const mode = data.paymentMode || existing.paymentMode || 'CASH';
-    const linkedPayment = await prisma.distributorPayment.findFirst({
+    const bankRepository = require('../repositories/bank.repository');
+    const tag = `[PurchaseBill:${id}]`;
+
+    // 1. Reverse bank transaction if it exists
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+    if (existingTxn) {
+      await bankRepository.adjustBalance(existingTxn.accountId, Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
+    }
+
+    // 2. Reverse cashbook if CASH payments existed
+    const existingCashPayments = await prisma.distributorPayment.findMany({
+      where: { billId: id, paymentMode: 'CASH' }
+    });
+    for (const cp of existingCashPayments) {
+      await this._reversePurchaseFromCashBook(existing, cp.amount);
+    }
+
+    // 3. Delete all linked distributor payments
+    await prisma.distributorPayment.deleteMany({
       where: { billId: id }
     });
 
+    const mode = data.paymentMode || existing.paymentMode || 'CASH';
+
     if (paidAmount > 0) {
-      if (linkedPayment) {
-        await prisma.distributorPayment.update({
-          where: { id: linkedPayment.id },
-          data: {
-            amount: paidAmount,
-            paymentMode: mode,
-            paymentDate: bill.billDate,
-            distributorId: bill.distributorId,
-          }
-        });
+      if (mode === 'BOTH') {
+        const cashAmount = parseFloat(data.cashAmount || 0);
+        const upiAmount = parseFloat(data.upiAmount || 0);
+
+        if (cashAmount > 0) {
+          await prisma.distributorPayment.create({
+            data: {
+              distributorId: bill.distributorId,
+              billId: bill.id,
+              paymentDate: bill.billDate,
+              amount: cashAmount,
+              paymentMode: 'CASH',
+              notes: `Advance Payment (Cash Portion) for Invoice #${bill.invoiceNo}`,
+              createdById: userId,
+            }
+          });
+          await this._syncPurchaseToCashBook(bill, cashAmount);
+        }
+
+        if (upiAmount > 0) {
+          await prisma.distributorPayment.create({
+            data: {
+              distributorId: bill.distributorId,
+              billId: bill.id,
+              paymentDate: bill.billDate,
+              amount: upiAmount,
+              paymentMode: 'UPI',
+              notes: `Advance Payment (UPI Portion) for Invoice #${bill.invoiceNo}`,
+              createdById: userId,
+            }
+          });
+          await this._syncPurchaseToBank(bill, 'UPI', data.bankAccountId, userId, upiAmount);
+        }
       } else {
         await prisma.distributorPayment.create({
           data: {
@@ -274,11 +354,13 @@ class PurchaseService {
             createdById: userId,
           }
         });
+
+        if (mode === 'CASH') {
+          await this._syncPurchaseToCashBook(bill);
+        } else {
+          await this._syncPurchaseToBank(bill, mode, data.bankAccountId, userId);
+        }
       }
-    } else if (linkedPayment) {
-      await prisma.distributorPayment.delete({
-        where: { id: linkedPayment.id }
-      });
     }
 
     // Recalculate bill status & paidAmount
@@ -365,7 +447,7 @@ class PurchaseService {
   /**
    * Sync cash purchase payment into CashBook totalExpenses for the bill date.
    */
-  async _syncPurchaseToCashBook(bill) {
+  async _syncPurchaseToCashBook(bill, customAmount = null) {
     const prisma = require('../config/prisma');
     const billDate = new Date(bill.billDate);
     const startOfDay = new Date(billDate);
@@ -380,7 +462,7 @@ class PurchaseService {
       },
     });
 
-    const paidAmount = Number(bill.paidAmount);
+    const paidAmount = customAmount !== null ? Number(customAmount) : Number(bill.paidAmount);
 
     if (cashBook) {
       const newTotalExp = Number(cashBook.totalExpenses) + paidAmount;
@@ -414,7 +496,7 @@ class PurchaseService {
     }
   }
 
-  async _syncPurchaseToBank(bill, paymentMode, bankAccountId, userId) {
+  async _syncPurchaseToBank(bill, paymentMode, bankAccountId, userId, customAmount = null) {
     const prisma = require('../config/prisma');
     const bankRepository = require('../repositories/bank.repository');
     const cashBookService = require('./cashbook.service');
@@ -431,7 +513,7 @@ class PurchaseService {
 
     const tag = `[PurchaseBill:${bill.id}]`;
     const description = `Stock Purchase Advance: Invoice #${bill.invoiceNo} ${tag}`;
-    const amount = Number(bill.paidAmount);
+    const amount = customAmount !== null ? Number(customAmount) : Number(bill.paidAmount);
 
     const existingTxn = await prisma.bankTransaction.findFirst({
       where: { description: { contains: tag } },
@@ -466,7 +548,7 @@ class PurchaseService {
     }
   }
 
-  async _reversePurchaseFromCashBook(bill) {
+  async _reversePurchaseFromCashBook(bill, customAmount = null) {
     const prisma = require('../config/prisma');
     const billDate = new Date(bill.billDate);
     const startOfDay = new Date(billDate);
@@ -482,7 +564,7 @@ class PurchaseService {
     });
 
     if (cashBook) {
-      const paidAmount = Number(bill.paidAmount);
+      const paidAmount = customAmount !== null ? Number(customAmount) : Number(bill.paidAmount);
       const newTotalExp = Math.max(0, Number(cashBook.totalExpenses) - paidAmount);
       const expectedClosing = Number(cashBook.openingCash) + Number(cashBook.cashSales) - newTotalExp;
       const newDifference = Number(cashBook.closingCash) - expectedClosing;

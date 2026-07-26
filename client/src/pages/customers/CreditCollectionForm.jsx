@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { RefreshCw, Check, MessageCircle } from 'lucide-react';
 import Modal from '../../components/common/Modal';
 import { customerApi } from '../../api/customer.api';
+import { bankApi } from '../../api/bank.api';
 
 const schema = z.object({
   customerId: z.string().min(1, 'Customer is required'),
@@ -13,16 +14,44 @@ const schema = z.object({
   amount: z.string().refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, {
     message: 'Amount must be a positive number',
   }),
-  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH']).default('CASH'),
   referenceNo: z.string().max(100).optional().nullable().or(z.literal('')),
   notes: z.string().max(500).optional().nullable().or(z.literal('')),
-});
+  cashAmount: z.string().optional().nullable().or(z.literal('')),
+  upiAmount: z.string().optional().nullable().or(z.literal('')),
+  bankAccountId: z.string().optional().nullable().or(z.literal('')),
+}).refine(
+  (data) => {
+    const total = parseFloat(data.amount);
+    if (data.paymentMode === 'BOTH') {
+      const cash = parseFloat(data.cashAmount || 0);
+      const upi = parseFloat(data.upiAmount || 0);
+      if (Math.abs(cash + upi - total) > 0.01) return false;
+    }
+    return true;
+  },
+  {
+    message: 'Cash and UPI amounts must sum up to the total amount',
+    path: ['cashAmount'],
+  }
+).refine(
+  (data) => {
+    if (data.paymentMode === 'UPI' && !data.bankAccountId) return false;
+    if (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0 && !data.bankAccountId) return false;
+    return true;
+  },
+  {
+    message: 'Bank account is required for UPI payments',
+    path: ['bankAccountId'],
+  }
+);
 
 const today = () => new Date().toISOString().split('T')[0];
 
 export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustomerId = null, prefillCreditId = null }) {
   const [customers, setCustomers] = useState([]);
   const [credits, setCredits] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successData, setSuccessData] = useState(null);
@@ -44,11 +73,22 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
       paymentMode: 'CASH',
       referenceNo: '',
       notes: '',
+      cashAmount: '',
+      upiAmount: '',
+      bankAccountId: '',
     },
   });
 
   const selectedCustomerId = watch('customerId');
   const selectedCreditId = watch('customerCreditId');
+  const paymentMode = watch('paymentMode');
+  const upiAmount = watch('upiAmount');
+
+  useEffect(() => {
+    bankApi.getAccounts().then((r) => {
+      setBankAccounts(r.data?.accounts || []);
+    });
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -63,6 +103,9 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
         paymentMode: 'CASH',
         referenceNo: '',
         notes: '',
+        cashAmount: '',
+        upiAmount: '',
+        bankAccountId: '',
       });
       setSuccessData(null);
     }
@@ -134,6 +177,9 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
         paymentMode: data.paymentMode,
         referenceNo: data.referenceNo || null,
         notes: data.notes || null,
+        cashAmount: data.paymentMode === 'BOTH' ? parseFloat(data.cashAmount) : null,
+        upiAmount: data.paymentMode === 'BOTH' ? parseFloat(data.upiAmount) : null,
+        bankAccountId: (data.paymentMode === 'UPI' || (data.paymentMode === 'BOTH' && parseFloat(data.upiAmount || 0) > 0)) ? data.bankAccountId : null,
       };
 
       const res = await customerApi.createCollection(payload);
@@ -278,10 +324,7 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
               >
                 <option value="CASH">Cash</option>
                 <option value="UPI">UPI</option>
-                <option value="CARD">Card</option>
-                <option value="CHEQUE">Cheque</option>
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                <option value="OTHER">Other</option>
+                <option value="BOTH">Both (Cash & UPI)</option>
               </select>
               {errors.paymentMode && <p className="text-xs text-red-455 mt-1">{errors.paymentMode.message}</p>}
             </div>
@@ -297,6 +340,52 @@ export function CreditCollectionForm({ isOpen, onClose, onSuccess, prefillCustom
               {errors.referenceNo && <p className="text-xs text-red-455 mt-1">{errors.referenceNo.message}</p>}
             </div>
           </div>
+
+          {paymentMode === 'BOTH' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="input-group">
+                <label className="input-label">Cash Amount (₹) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('cashAmount')}
+                  className={`input ${errors.cashAmount ? 'input-error' : ''}`}
+                  placeholder="0.00"
+                />
+                {errors.cashAmount && <p className="text-xs text-red-455 mt-1">{errors.cashAmount.message}</p>}
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">UPI Amount (₹) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  {...register('upiAmount')}
+                  className={`input ${errors.upiAmount ? 'input-error' : ''}`}
+                  placeholder="0.00"
+                />
+                {errors.upiAmount && <p className="text-xs text-red-455 mt-1">{errors.upiAmount.message}</p>}
+              </div>
+            </div>
+          )}
+
+          {(paymentMode === 'UPI' || (paymentMode === 'BOTH' && parseFloat(upiAmount || 0) > 0)) && (
+            <div className="input-group mt-4">
+              <label className="input-label">Select Bank Account *</label>
+              <select
+                {...register('bankAccountId')}
+                className={`input ${errors.bankAccountId ? 'input-error' : ''}`}
+              >
+                <option value="">Select Account</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
+                  </option>
+                ))}
+              </select>
+              {errors.bankAccountId && <p className="text-xs text-red-455 mt-1">{errors.bankAccountId.message}</p>}
+            </div>
+          )}
 
           <div className="input-group">
             <label className="input-label">Notes</label>

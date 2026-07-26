@@ -22,19 +22,35 @@ const billSchema = z.object({
   gstAmount: z.coerce.number().min(0, 'Must be positive').default(0),
   discountAmount: z.coerce.number().min(0, 'Must be positive').default(0),
   paidAmount: z.coerce.number().min(0, 'Must be positive').default(0),
-  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
+  paymentMode: z.enum(['CASH', 'UPI', 'BOTH']).default('CASH'),
   bankAccountId: z.string().optional().nullable().or(z.literal('')),
   notes: z.string().optional(),
+  cashAmount: z.coerce.number().min(0).optional().nullable(),
+  upiAmount: z.coerce.number().min(0).optional().nullable(),
 }).refine(
   (data) => {
-    if (data.paidAmount > 0 && data.paymentMode !== 'CASH' && !data.bankAccountId) {
-      return false;
+    if (data.paidAmount > 0) {
+      if (data.paymentMode === 'UPI' && !data.bankAccountId) return false;
+      if (data.paymentMode === 'BOTH' && Number(data.upiAmount) > 0 && !data.bankAccountId) return false;
     }
     return true;
   },
   {
-    message: 'Bank account is required for non-cash payments',
+    message: 'Bank account is required for UPI payments',
     path: ['bankAccountId'],
+  }
+).refine(
+  (data) => {
+    if (data.paidAmount > 0 && data.paymentMode === 'BOTH') {
+      const cash = Number(data.cashAmount || 0);
+      const upi = Number(data.upiAmount || 0);
+      return Math.abs(cash + upi - data.paidAmount) < 0.01;
+    }
+    return true;
+  },
+  {
+    message: 'Cash and UPI amounts must sum to the total advance paid amount',
+    path: ['cashAmount'],
   }
 );
 
@@ -68,12 +84,15 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
           paymentMode: initialData.paymentMode || 'CASH',
           bankAccountId: initialData.bankAccountId || '',
           notes: initialData.notes || '',
+          cashAmount: initialData.cashAmount || '',
+          upiAmount: initialData.upiAmount || '',
         }
       : {
           invoiceNo: '', distributorId: '',
           billDate: new Date().toISOString().split('T')[0],
           dueDate: '', subtotal: '', gstAmount: 0, discountAmount: 0, paidAmount: 0,
           paymentMode: 'CASH', bankAccountId: '', notes: '',
+          cashAmount: '', upiAmount: '',
         },
   });
 
@@ -171,30 +190,43 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
       </div>
 
       {paidAmount > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-          <FormField label="Payment Mode *" error={errors.paymentMode?.message}>
-            <select {...register('paymentMode')} style={{ ...selectBase, ...(errors.paymentMode ? { borderColor: '#ef4444' } : {}) }}>
-              <option value="CASH">Cash</option>
-              <option value="UPI">UPI</option>
-              <option value="CARD">Card</option>
-              <option value="CHEQUE">Cheque</option>
-              <option value="BANK_TRANSFER">Bank Transfer</option>
-              <option value="OTHER">Other</option>
-            </select>
-          </FormField>
-          {watched.paymentMode !== 'CASH' && (
-            <FormField label="Select Bank Account *" error={errors.bankAccountId?.message}>
-              <select {...register('bankAccountId')} style={{ ...selectBase, ...(errors.bankAccountId ? { borderColor: '#ef4444' } : {}) }}>
-                <option value="">Select Account</option>
-                {bankAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
-                  </option>
-                ))}
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 12 }}>
+            <FormField label="Payment Mode *" error={errors.paymentMode?.message}>
+              <select {...register('paymentMode')} style={{ ...selectBase, ...(errors.paymentMode ? { borderColor: '#ef4444' } : {}) }}>
+                <option value="CASH">Cash</option>
+                <option value="UPI">UPI</option>
+                <option value="BOTH">Both (Cash and UPI)</option>
               </select>
             </FormField>
+          </div>
+
+          {watched.paymentMode === 'BOTH' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+              <FormField label="Cash Amount (₹) *" error={errors.cashAmount?.message}>
+                <input type="number" step="0.01" placeholder="0.00" {...register('cashAmount')} {...inp()} />
+              </FormField>
+              <FormField label="UPI Amount (₹) *" error={errors.upiAmount?.message}>
+                <input type="number" step="0.01" placeholder="0.00" {...register('upiAmount')} {...inp()} />
+              </FormField>
+            </div>
           )}
-        </div>
+
+          {(watched.paymentMode === 'UPI' || (watched.paymentMode === 'BOTH' && Number(watched.upiAmount) > 0)) && (
+            <div style={{ marginBottom: 12 }}>
+              <FormField label="Select Bank Account *" error={errors.bankAccountId?.message}>
+                <select {...register('bankAccountId')} style={{ ...selectBase, ...(errors.bankAccountId ? { borderColor: '#ef4444' } : {}) }}>
+                  <option value="">Select Account</option>
+                  {bankAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+          )}
+        </>
       )}
 
       {/* Summary strip */}

@@ -1,7 +1,7 @@
 // src/validators/expense.validator.js
 const { z } = require('zod');
 
-const paymentModeEnum = z.enum(['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']);
+const paymentModeEnum = z.enum(['CASH', 'UPI', 'BOTH', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER']);
 
 const decimal = z.preprocess((val) => (typeof val === 'string' ? parseFloat(val) : val), z.number().positive('Amount must be greater than zero'));
 
@@ -14,6 +14,8 @@ const createExpenseSchema = z.object({
   isRecurring: z.coerce.boolean().default(false),
   notes: z.string().optional(),
   bankAccountId: z.string().optional().nullable(),
+  cashAmount: z.preprocess((val) => (typeof val === 'string' && val !== '' ? parseFloat(val) : val), z.number().optional().nullable()),
+  upiAmount: z.preprocess((val) => (typeof val === 'string' && val !== '' ? parseFloat(val) : val), z.number().optional().nullable()),
 });
 
 const updateExpenseSchema = createExpenseSchema.partial();

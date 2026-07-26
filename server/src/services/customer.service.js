@@ -178,6 +178,29 @@ class CustomerService {
       throw new ApiError(404, 'Customer not found.');
     }
 
+    if (data.paymentMode === 'BOTH') {
+      const cashAmount = parseFloat(data.cashAmount || 0);
+      const upiAmount = parseFloat(data.upiAmount || 0);
+      let cashCol = null;
+      let upiCol = null;
+      if (cashAmount > 0) {
+        cashCol = await this.createCollection({
+          ...data,
+          amount: cashAmount,
+          paymentMode: 'CASH',
+        }, userId);
+      }
+      if (upiAmount > 0) {
+        upiCol = await this.createCollection({
+          ...data,
+          amount: upiAmount,
+          paymentMode: 'UPI',
+          bankAccountId: data.bankAccountId,
+        }, userId);
+      }
+      return upiCol || cashCol;
+    }
+
     if (data.customerCreditId) {
       const credit = await customerRepository.findCreditById(data.customerCreditId);
       if (!credit) {
@@ -201,6 +224,11 @@ class CustomerService {
     };
 
     const collection = await customerRepository.createCollection(payload);
+
+    // Sync to Bank if UPI
+    if (collection.paymentMode === 'UPI') {
+      await this._syncCollectionToBank(collection, data.bankAccountId || null, userId);
+    }
 
     // Recalculate credit statuses for this customer
     await this._recalcCustomerCredits(data.customerId);
@@ -275,6 +303,11 @@ class CustomerService {
 
     // Clean up CashBook sync
     await this._cleanupCollectionFromCashBook(collection);
+
+    // Clean up Bank sync if UPI
+    if (collection.paymentMode === 'UPI') {
+      await this._cleanupCollectionBankSync(collection);
+    }
 
     if (customerId) {
       await this._recalcCustomerCredits(customerId);
@@ -433,15 +466,12 @@ class CustomerService {
       const updateData = { cashDifference: newDifference };
       updateData[field] = newReceipts;
 
-      const updated = await prisma.cashBook.update({
+      await prisma.cashBook.update({
         where: { id: cashBook.id },
         data: updateData,
       });
-
-      const cashBookService = require('./cashbook.service');
-      await cashBookService._syncUpiToBank(updated);
     } else {
-      const created = await prisma.cashBook.create({
+      await prisma.cashBook.create({
         data: {
           date: startOfDay,
           openingCash: 0,
@@ -457,11 +487,6 @@ class CustomerService {
           createdById: collection.createdById,
         },
       });
-
-      if (mode === 'UPI' && amt > 0) {
-        const cashBookService = require('./cashbook.service');
-        await cashBookService._syncUpiToBank(created);
-      }
     }
   }
 
@@ -490,13 +515,81 @@ class CustomerService {
       const updateData = {};
       updateData[field] = newReceipts;
 
-      const updated = await prisma.cashBook.update({
+      await prisma.cashBook.update({
         where: { id: cashBook.id },
         data: updateData,
       });
+    }
+  }
 
-      const cashBookService = require('./cashbook.service');
-      await cashBookService._syncUpiToBank(updated);
+  async _syncCollectionToBank(collection, bankAccountId, userId) {
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+    const cashBookService = require('./cashbook.service');
+
+    let targetBankAccountId = bankAccountId;
+    if (!targetBankAccountId) {
+      const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+      if (primaryBank) {
+        targetBankAccountId = primaryBank.id;
+      }
+    }
+
+    if (!targetBankAccountId) return;
+
+    const customer = await prisma.customer.findUnique({
+      where: { id: collection.customerId },
+    });
+
+    const tag = `[CustomerCollection:${collection.id}]`;
+    const description = `Customer Collection (${customer?.name || 'Customer'}) ${tag}`;
+    const amount = Number(collection.amount);
+
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      const prevAmount = Number(existingTxn.amount);
+      const delta = amount - prevAmount;
+      if (delta !== 0) {
+        await prisma.bankTransaction.update({
+          where: { id: existingTxn.id },
+          data: { amount, description },
+        });
+        await bankRepository.adjustBalance(existingTxn.accountId, delta);
+      }
+    } else {
+      const account = await bankRepository.findAccountById(targetBankAccountId);
+      if (!account) return;
+      const newBalance = Number(account.currentBalance) + amount;
+      await prisma.bankTransaction.create({
+        data: {
+          accountId: targetBankAccountId,
+          type: 'DEPOSIT',
+          date: collection.collectionDate || new Date(),
+          amount,
+          description,
+          runningBalance: newBalance,
+          createdById: userId,
+        },
+      });
+      await bankRepository.adjustBalance(targetBankAccountId, amount);
+    }
+  }
+
+  async _cleanupCollectionBankSync(collection) {
+    const prisma = require('../config/prisma');
+    const bankRepository = require('../repositories/bank.repository');
+
+    const tag = `[CustomerCollection:${collection.id}]`;
+    const existingTxn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+    });
+
+    if (existingTxn) {
+      await bankRepository.adjustBalance(existingTxn.accountId, -Number(existingTxn.amount));
+      await prisma.bankTransaction.delete({ where: { id: existingTxn.id } });
     }
   }
 }

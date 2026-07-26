@@ -18,10 +18,35 @@ const formSchema = z.object({
   description: z.string().min(3, 'At least 3 characters'),
   amount: z.coerce.number().positive('Must be positive'),
   paymentMode: z.string().default('CASH'),
-  bankAccountId: z.string().optional(),
+  bankAccountId: z.string().optional().nullable().or(z.literal('')),
   isRecurring: z.boolean().default(false),
   notes: z.string().optional(),
-});
+  cashAmount: z.coerce.number().min(0).optional().nullable(),
+  upiAmount: z.coerce.number().min(0).optional().nullable(),
+}).refine(
+  (data) => {
+    if (data.paymentMode === 'UPI' && !data.bankAccountId) return false;
+    if (data.paymentMode === 'BOTH' && Number(data.upiAmount) > 0 && !data.bankAccountId) return false;
+    return true;
+  },
+  {
+    message: 'Bank account is required for UPI payments',
+    path: ['bankAccountId'],
+  }
+).refine(
+  (data) => {
+    if (data.paymentMode === 'BOTH') {
+      const cash = Number(data.cashAmount || 0);
+      const upi = Number(data.upiAmount || 0);
+      return Math.abs(cash + upi - data.amount) < 0.01;
+    }
+    return true;
+  },
+  {
+    message: 'Cash and UPI amounts must sum to the total expense amount',
+    path: ['cashAmount'],
+  }
+);
 
 export default function ExpenseForm({ initialData, onSuccess, onClose }) {
   const isEdit = !!initialData;
@@ -58,11 +83,13 @@ export default function ExpenseForm({ initialData, onSuccess, onClose }) {
           categoryId: '', description: '', amount: '',
           paymentMode: 'CASH', bankAccountId: '',
           isRecurring: false, notes: '',
+          cashAmount: '', upiAmount: '',
         },
   });
 
   const paymentMode = useWatch({ control, name: 'paymentMode' });
-  const showBankSelector = paymentMode && paymentMode !== 'CASH';
+  const upiAmountWatched = useWatch({ control, name: 'upiAmount' });
+  const showBankSelector = paymentMode && (paymentMode === 'UPI' || (paymentMode === 'BOTH' && Number(upiAmountWatched) > 0));
   const inp = useInputStyle(errors);
 
   const onSubmit = async (values) => {
@@ -76,7 +103,11 @@ export default function ExpenseForm({ initialData, onSuccess, onClose }) {
     formData.append('paymentMode', values.paymentMode);
     formData.append('isRecurring', values.isRecurring);
     formData.append('notes', values.notes || '');
-    if (values.paymentMode !== 'CASH' && values.bankAccountId) {
+    if (values.paymentMode === 'BOTH') {
+      formData.append('cashAmount', values.cashAmount || 0);
+      formData.append('upiAmount', values.upiAmount || 0);
+    }
+    if ((values.paymentMode === 'UPI' || (values.paymentMode === 'BOTH' && Number(values.upiAmount) > 0)) && values.bankAccountId) {
       formData.append('bankAccountId', values.bankAccountId);
     }
     if (selectedFile) formData.append('receipt', selectedFile);
@@ -134,10 +165,21 @@ export default function ExpenseForm({ initialData, onSuccess, onClose }) {
           <select {...register('paymentMode')} style={selectBase}>
             <option value="CASH">Cash</option>
             <option value="UPI">UPI</option>
-            <option value="CHEQUE">Cheque</option>
+            <option value="BOTH">Both (Cash & UPI)</option>
           </select>
         </FormField>
       </div>
+
+      {paymentMode === 'BOTH' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <FormField label="Cash Amount (₹) *" error={errors.cashAmount?.message}>
+            <input type="number" step="0.01" placeholder="0.00" {...register('cashAmount')} {...inp()} />
+          </FormField>
+          <FormField label="UPI Amount (₹) *" error={errors.upiAmount?.message}>
+            <input type="number" step="0.01" placeholder="0.00" {...register('upiAmount')} {...inp()} />
+          </FormField>
+        </div>
+      )}
 
       {/* Bank Account (conditional) */}
       {showBankSelector && (

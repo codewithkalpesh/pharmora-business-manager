@@ -7,6 +7,29 @@ const ApiError = require('../utils/ApiError');
 
 class PaymentService {
   async createPayment(data, userId) {
+    if (data.paymentMode === 'BOTH') {
+      const cashAmount = parseFloat(data.cashAmount || 0);
+      const upiAmount = parseFloat(data.upiAmount || 0);
+      let cashPay = null;
+      let upiPay = null;
+      if (cashAmount > 0) {
+        cashPay = await this.createPayment({
+          ...data,
+          amount: cashAmount,
+          paymentMode: 'CASH',
+        }, userId);
+      }
+      if (upiAmount > 0) {
+        upiPay = await this.createPayment({
+          ...data,
+          amount: upiAmount,
+          paymentMode: 'UPI',
+          bankAccountId: data.bankAccountId,
+        }, userId);
+      }
+      return upiPay || cashPay;
+    }
+
     // Validate distributor exists
     const distributor = await purchaseRepository.findDistributorById(data.distributorId);
     if (!distributor) {
@@ -40,7 +63,7 @@ class PaymentService {
 
     // Sync payment withdrawal to primary bank account if not CASH
     if (payment.paymentMode !== 'CASH') {
-      await this._syncPaymentToBank(payment, userId);
+      await this._syncPaymentToBank(payment, data.bankAccountId || null, userId);
     }
 
     // Recalculate all bill statuses for this distributor
@@ -189,7 +212,7 @@ class PaymentService {
 
     // Sync updated payment withdrawal to bank if not CASH
     if (updated.paymentMode !== 'CASH') {
-      await this._syncPaymentToBank(updated, userId);
+      await this._syncPaymentToBank(updated, data.bankAccountId || null, userId);
     }
 
     // Recalculate bill statuses for both the old distributor and new distributor (in case it changed)
@@ -324,13 +347,19 @@ class PaymentService {
     }
   }
 
-  async _syncPaymentToBank(payment, userId) {
+  async _syncPaymentToBank(payment, bankAccountId, userId) {
     const prisma = require('../config/prisma');
     const bankRepository = require('../repositories/bank.repository');
     const cashBookService = require('./cashbook.service');
 
-    const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
-    if (!primaryBank) return;
+    let targetBankAccountId = bankAccountId;
+    if (!targetBankAccountId) {
+      const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+      if (primaryBank) {
+        targetBankAccountId = primaryBank.id;
+      }
+    }
+    if (!targetBankAccountId) return;
 
     // Fetch distributor info for description
     const distributor = await prisma.distributor.findUnique({
@@ -356,10 +385,12 @@ class PaymentService {
         await bankRepository.adjustBalance(existingTxn.accountId, -delta);
       }
     } else {
-      const newBalance = Number(primaryBank.currentBalance) - amount;
+      const account = await bankRepository.findAccountById(targetBankAccountId);
+      if (!account) return;
+      const newBalance = Number(account.currentBalance) - amount;
       await prisma.bankTransaction.create({
         data: {
-          accountId: primaryBank.id,
+          accountId: targetBankAccountId,
           type: 'WITHDRAWAL',
           date: payment.paymentDate || new Date(),
           amount,
@@ -368,7 +399,7 @@ class PaymentService {
           createdById: userId,
         },
       });
-      await bankRepository.adjustBalance(primaryBank.id, -amount);
+      await bankRepository.adjustBalance(targetBankAccountId, -amount);
     }
   }
 

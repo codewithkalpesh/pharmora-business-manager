@@ -7,12 +7,32 @@ const ApiError = require('../utils/ApiError');
 
 class BorrowedService {
   async createBorrowed(data, userId) {
-    const borrowedAmount = Number(data.borrowedAmount || 0);
-    const targetAmount = Number(data.targetAmount !== undefined ? data.targetAmount : borrowedAmount);
-
-    if (borrowedAmount <= 0) {
-      throw new ApiError(400, 'Borrowed amount must be greater than zero.');
+    if (data.paymentMode === 'BOTH') {
+      const cashAmount = parseFloat(data.cashAmount || 0);
+      const upiAmount = parseFloat(data.upiAmount || 0);
+      let cashRec = null;
+      let upiRec = null;
+      if (cashAmount > 0) {
+        cashRec = await this.createBorrowed({
+          ...data,
+          borrowedAmount: cashAmount,
+          targetAmount: data.targetAmount ? (cashAmount / (cashAmount + upiAmount)) * Number(data.targetAmount) : cashAmount,
+          paymentMode: 'CASH',
+        }, userId);
+      }
+      if (upiAmount > 0) {
+        upiRec = await this.createBorrowed({
+          ...data,
+          borrowedAmount: upiAmount,
+          targetAmount: data.targetAmount ? (upiAmount / (cashAmount + upiAmount)) * Number(data.targetAmount) : upiAmount,
+          paymentMode: 'UPI',
+          bankAccountId: data.bankAccountId,
+        }, userId);
+      }
+      return upiRec || cashRec;
     }
+
+    const borrowedAmount = Number(data.borrowedAmount || 0);
 
     const payload = {
       personName: data.personName?.trim(),
@@ -38,7 +58,7 @@ class BorrowedService {
     if (item.paymentMode === 'CASH') {
       await this._syncBorrowedToCashBook(item);
     } else {
-      await this._syncBorrowedToBank(item);
+      await this._syncBorrowedToBank(item, data.bankAccountId || null);
     }
 
     // Create a reminder notification if targetDate is provided
@@ -197,7 +217,7 @@ class BorrowedService {
     if (updated.paymentMode === 'CASH') {
       await this._syncBorrowedToCashBook(updated);
     } else {
-      await this._syncBorrowedToBank(updated);
+      await this._syncBorrowedToBank(updated, data.bankAccountId || null);
     }
 
     if (updated.targetDate) {
@@ -229,6 +249,29 @@ class BorrowedService {
   // ─── Repayments Logic ───────────────────────────────────────────────────────
 
   async addRepayment(borrowedId, data, userId) {
+    if (data.paymentMode === 'BOTH') {
+      const cashAmount = parseFloat(data.cashAmount || 0);
+      const upiAmount = parseFloat(data.upiAmount || 0);
+      let cashRepay = null;
+      let upiRepay = null;
+      if (cashAmount > 0) {
+        cashRepay = await this.addRepayment(borrowedId, {
+          ...data,
+          amount: cashAmount,
+          paymentMode: 'CASH',
+        }, userId);
+      }
+      if (upiAmount > 0) {
+        upiRepay = await this.addRepayment(borrowedId, {
+          ...data,
+          amount: upiAmount,
+          paymentMode: 'UPI',
+          bankAccountId: data.bankAccountId,
+        }, userId);
+      }
+      return upiRepay || cashRepay;
+    }
+
     const borrowed = await borrowedRepository.findById(borrowedId);
     if (!borrowed) {
       throw new ApiError(404, 'Borrowed money record not found.');
@@ -270,7 +313,7 @@ class BorrowedService {
 
     // Sync to Bank if not CASH
     if (repayment.paymentMode !== 'CASH') {
-      await this._syncRepaymentToBank(repayment, userId);
+      await this._syncRepaymentToBank(repayment, data.bankAccountId || null, userId);
     }
 
     // Recalculate CashBook daily totalExpenses and cashExpenses
@@ -508,7 +551,7 @@ class BorrowedService {
     }
   }
 
-  async _syncBorrowedToBank(item) {
+  async _syncBorrowedToBank(item, bankAccountId = null) {
     const bankRepository = require('../repositories/bank.repository');
     const cashBookService = require('./cashbook.service');
 
@@ -516,13 +559,21 @@ class BorrowedService {
     const tag = `[BorrowedMoney:${item.id}]`;
     const description = `Borrowed from ${item.personName} ${tag}`;
 
-    const primaryBank = await cashBookService._findPrimaryBankAccount(item.createdById);
-    if (!primaryBank) return;
+    let targetBankAccountId = bankAccountId;
+    if (!targetBankAccountId) {
+      const primaryBank = await cashBookService._findPrimaryBankAccount(item.createdById);
+      if (primaryBank) {
+        targetBankAccountId = primaryBank.id;
+      }
+    }
+    if (!targetBankAccountId) return;
 
-    const newBalance = Number(primaryBank.currentBalance) + amount;
+    const account = await bankRepository.findAccountById(targetBankAccountId);
+    if (!account) return;
+    const newBalance = Number(account.currentBalance) + amount;
     await prisma.bankTransaction.create({
       data: {
-        accountId: primaryBank.id,
+        accountId: targetBankAccountId,
         type: 'DEPOSIT',
         date: item.borrowDate || new Date(),
         amount,
@@ -531,7 +582,7 @@ class BorrowedService {
         createdById: item.createdById,
       },
     });
-    await bankRepository.adjustBalance(primaryBank.id, amount);
+    await bankRepository.adjustBalance(targetBankAccountId, amount);
   }
 
   async _cleanupBorrowedBankSync(item) {
@@ -547,7 +598,7 @@ class BorrowedService {
     }
   }
 
-  async _syncRepaymentToBank(repayment, userId) {
+  async _syncRepaymentToBank(repayment, bankAccountId, userId) {
     const bankRepository = require('../repositories/bank.repository');
     const cashBookService = require('./cashbook.service');
 
@@ -560,13 +611,21 @@ class BorrowedService {
     const lenderName = borrowed ? borrowed.personName : 'Lender';
     const description = `Repayment to ${lenderName} ${tag}`;
 
-    const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
-    if (!primaryBank) return;
+    let targetBankAccountId = bankAccountId;
+    if (!targetBankAccountId) {
+      const primaryBank = await cashBookService._findPrimaryBankAccount(userId);
+      if (primaryBank) {
+        targetBankAccountId = primaryBank.id;
+      }
+    }
+    if (!targetBankAccountId) return;
 
-    const newBalance = Number(primaryBank.currentBalance) - amount;
+    const account = await bankRepository.findAccountById(targetBankAccountId);
+    if (!account) return;
+    const newBalance = Number(account.currentBalance) - amount;
     await prisma.bankTransaction.create({
       data: {
-        accountId: primaryBank.id,
+        accountId: targetBankAccountId,
         type: 'WITHDRAWAL',
         date: repayment.repaymentDate || new Date(),
         amount,
@@ -575,7 +634,7 @@ class BorrowedService {
         createdById: userId,
       },
     });
-    await bankRepository.adjustBalance(primaryBank.id, -amount);
+    await bankRepository.adjustBalance(targetBankAccountId, -amount);
   }
 
   async _cleanupRepaymentBankSync(repayment) {

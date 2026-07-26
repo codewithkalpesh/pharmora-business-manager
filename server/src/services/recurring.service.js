@@ -5,6 +5,20 @@ const notificationService = require('./notification.service');
 const ApiError = require('../utils/ApiError');
 
 class RecurringService {
+  _parseBothAmounts(notes, totalAmount) {
+    if (notes) {
+      const match = notes.match(/\[BOTH:cash=([\d.]+),upi=([\d.]+)\]/);
+      if (match) {
+        return {
+          cashAmount: parseFloat(match[1]),
+          upiAmount: parseFloat(match[2]),
+        };
+      }
+    }
+    const half = Number(totalAmount) / 2;
+    return { cashAmount: half, upiAmount: half };
+  }
+
   // ─── Calculator Helper ─────────────────────────────────────────────────────
 
   calculateNextDueDate(currentDate, frequency, customDays) {
@@ -152,40 +166,74 @@ class RecurringService {
       });
 
       if (!category) {
-        category = await prisma.expenseCategory.findFirst();
+        category = await prisma.expenseCategory.findFirst({
+          where: { name: 'Miscellaneous' },
+        });
       }
 
       if (!category) {
-        await prisma.expenseCategory.createMany({
-          data: [
-            { name: 'Rent & Lease', icon: 'Building', color: '#ef4444', isDefault: true },
-            { name: 'Utilities & Bills', icon: 'Zap', color: '#eab308', isDefault: true },
-            { name: 'Salaries & Wages', icon: 'UserCheck', color: '#3b82f6', isDefault: true },
-            { name: 'Miscellaneous', icon: 'HelpCircle', color: '#64748b', isDefault: true },
-          ],
-        });
         category = await prisma.expenseCategory.findFirst();
       }
 
-      const expense = await prisma.expense.create({
-        data: {
-          date: executionDate,
-          categoryId: category.id,
-          description: `[RECURRING] ${recurring.title}`,
-          amount: recurring.amount,
-          paymentMode: recurring.paymentMode || 'CASH',
-          isRecurring: true,
-          notes: recurring.description || 'Executed from recurring schedule',
-          createdById: recurring.createdById,
-        },
-      });
+      if (recurring.paymentMode === 'BOTH') {
+        const { cashAmount, upiAmount } = this._parseBothAmounts(recurring.description || recurring.notes, recurring.amount);
 
-      // Sync payment withdrawal to primary bank account if not CASH
-      if (expense.paymentMode !== 'CASH') {
-        const primaryBank = await cashBookService._findPrimaryBankAccount(recurring.createdById);
-        if (primaryBank) {
-          const expenseService = require('./expense.service');
-          await expenseService._syncExpenseToBank(expense, primaryBank.id);
+        if (cashAmount > 0) {
+          await prisma.expense.create({
+            data: {
+              date: executionDate,
+              categoryId: category.id,
+              description: `[RECURRING] ${recurring.title} (Cash)`,
+              amount: cashAmount,
+              paymentMode: 'CASH',
+              isRecurring: true,
+              notes: recurring.description || 'Executed from recurring schedule',
+              createdById: recurring.createdById,
+            },
+          });
+        }
+
+        if (upiAmount > 0) {
+          const expense = await prisma.expense.create({
+            data: {
+              date: executionDate,
+              categoryId: category.id,
+              description: `[RECURRING] ${recurring.title} (UPI)`,
+              amount: upiAmount,
+              paymentMode: 'UPI',
+              isRecurring: true,
+              notes: recurring.description || 'Executed from recurring schedule',
+              createdById: recurring.createdById,
+            },
+          });
+
+          const primaryBank = await cashBookService._findPrimaryBankAccount(recurring.createdById);
+          if (primaryBank) {
+            const expenseService = require('./expense.service');
+            await expenseService._syncExpenseToBank(expense, primaryBank.id);
+          }
+        }
+      } else {
+        const expense = await prisma.expense.create({
+          data: {
+            date: executionDate,
+            categoryId: category.id,
+            description: `[RECURRING] ${recurring.title}`,
+            amount: recurring.amount,
+            paymentMode: recurring.paymentMode || 'CASH',
+            isRecurring: true,
+            notes: recurring.description || 'Executed from recurring schedule',
+            createdById: recurring.createdById,
+          },
+        });
+
+        // Sync payment withdrawal to primary bank account if not CASH
+        if (expense.paymentMode !== 'CASH') {
+          const primaryBank = await cashBookService._findPrimaryBankAccount(recurring.createdById);
+          if (primaryBank) {
+            const expenseService = require('./expense.service');
+            await expenseService._syncExpenseToBank(expense, primaryBank.id);
+          }
         }
       }
 
@@ -198,62 +246,112 @@ class RecurringService {
 
       const amt = Number(recurring.amount);
       const mode = recurring.paymentMode || 'CASH';
-      const field = mode === 'UPI' ? 'upiReceipts' : mode === 'CARD' ? 'cardReceipts' : mode === 'CASH' ? 'cashSales' : 'otherIncome';
 
-      if (existingCashBook) {
-        const currentFieldVal = Number(existingCashBook[field]) || 0;
-        const newFieldVal = currentFieldVal + amt;
+      if (mode === 'BOTH') {
+        const { cashAmount, upiAmount } = this._parseBothAmounts(recurring.description || recurring.notes, recurring.amount);
 
-        const newSales = mode === 'CASH' ? newFieldVal : Number(existingCashBook.cashSales);
-        const newUpi = mode === 'UPI' ? newFieldVal : Number(existingCashBook.upiReceipts);
-        const newCard = mode === 'CARD' ? newFieldVal : Number(existingCashBook.cardReceipts);
-        const newOther = mode !== 'CASH' && mode !== 'UPI' && mode !== 'CARD' ? (Number(existingCashBook.otherIncome) + amt) : Number(existingCashBook.otherIncome);
+        if (existingCashBook) {
+          const newSales = Number(existingCashBook.cashSales) + cashAmount;
+          const newUpi = Number(existingCashBook.upiReceipts) + upiAmount;
 
-        const expectedClosing = Number(existingCashBook.openingCash) + newSales + newUpi + newCard + newOther - Number(existingCashBook.totalExpenses) - Number(existingCashBook.bankDeposit);
-        const newDifference = Number(existingCashBook.closingCash) - expectedClosing;
+          const expectedClosing = Number(existingCashBook.openingCash) + newSales + newUpi + Number(existingCashBook.cardReceipts) + Number(existingCashBook.otherIncome) - Number(existingCashBook.totalExpenses) - Number(existingCashBook.bankDeposit);
+          const newDifference = Number(existingCashBook.closingCash) - expectedClosing;
 
-        const updateData = {
-          cashDifference: newDifference,
-        };
-        updateData[field] = newFieldVal;
+          const updated = await prisma.cashBook.update({
+            where: { id: existingCashBook.id },
+            data: {
+              cashSales: newSales,
+              upiReceipts: newUpi,
+              cashDifference: newDifference,
+            },
+          });
 
-        const updated = await prisma.cashBook.update({
-          where: { id: existingCashBook.id },
-          data: updateData,
-        });
-
-        if (mode === 'UPI') {
           await cashBookService._syncUpiToBank(updated);
+        } else {
+          const prevEntry = await prisma.cashBook.findFirst({
+            where: { date: { lt: executionDate }, createdById: recurring.createdById },
+            orderBy: { date: 'desc' },
+          });
+
+          const opening = prevEntry ? Number(prevEntry.closingCash) : 0;
+
+          const created = await prisma.cashBook.create({
+            data: {
+              date: executionDate,
+              openingCash: opening,
+              cashSales: cashAmount,
+              upiReceipts: upiAmount,
+              cardReceipts: 0,
+              otherIncome: 0,
+              totalExpenses: 0,
+              bankDeposit: 0,
+              closingCash: opening + cashAmount,
+              cashDifference: 0,
+              notes: `Auto-created from recurring income: ${recurring.title}`,
+              createdById: recurring.createdById,
+            },
+          });
+
+          await cashBookService._syncUpiToBank(created);
         }
       } else {
-        const prevEntry = await prisma.cashBook.findFirst({
-          where: { date: { lt: executionDate }, createdById: recurring.createdById },
-          orderBy: { date: 'desc' },
-        });
+        const field = mode === 'UPI' ? 'upiReceipts' : mode === 'CARD' ? 'cardReceipts' : mode === 'CASH' ? 'cashSales' : 'otherIncome';
 
-        const opening = prevEntry ? Number(prevEntry.closingCash) : 0;
+        if (existingCashBook) {
+          const currentFieldVal = Number(existingCashBook[field]) || 0;
+          const newFieldVal = currentFieldVal + amt;
 
-        const createData = {
-          date: executionDate,
-          openingCash: opening,
-          cashSales: mode === 'CASH' ? amt : 0,
-          upiReceipts: mode === 'UPI' ? amt : 0,
-          cardReceipts: mode === 'CARD' ? amt : 0,
-          otherIncome: mode !== 'CASH' && mode !== 'UPI' && mode !== 'CARD' ? amt : 0,
-          totalExpenses: 0,
-          bankDeposit: 0,
-          closingCash: mode === 'CASH' ? opening + amt : opening,
-          cashDifference: 0,
-          notes: `Auto-created from recurring income: ${recurring.title}`,
-          createdById: recurring.createdById,
-        };
+          const newSales = mode === 'CASH' ? newFieldVal : Number(existingCashBook.cashSales);
+          const newUpi = mode === 'UPI' ? newFieldVal : Number(existingCashBook.upiReceipts);
+          const newCard = mode === 'CARD' ? newFieldVal : Number(existingCashBook.cardReceipts);
+          const newOther = mode !== 'CASH' && mode !== 'UPI' && mode !== 'CARD' ? (Number(existingCashBook.otherIncome) + amt) : Number(existingCashBook.otherIncome);
 
-        const created = await prisma.cashBook.create({
-          data: createData,
-        });
+          const expectedClosing = Number(existingCashBook.openingCash) + newSales + newUpi + newCard + newOther - Number(existingCashBook.totalExpenses) - Number(existingCashBook.bankDeposit);
+          const newDifference = Number(existingCashBook.closingCash) - expectedClosing;
 
-        if (mode === 'UPI') {
-          await cashBookService._syncUpiToBank(created);
+          const updateData = {
+            cashDifference: newDifference,
+          };
+          updateData[field] = newFieldVal;
+
+          const updated = await prisma.cashBook.update({
+            where: { id: existingCashBook.id },
+            data: updateData,
+          });
+
+          if (mode === 'UPI') {
+            await cashBookService._syncUpiToBank(updated);
+          }
+        } else {
+          const prevEntry = await prisma.cashBook.findFirst({
+            where: { date: { lt: executionDate }, createdById: recurring.createdById },
+            orderBy: { date: 'desc' },
+          });
+
+          const opening = prevEntry ? Number(prevEntry.closingCash) : 0;
+
+          const createData = {
+            date: executionDate,
+            openingCash: opening,
+            cashSales: mode === 'CASH' ? amt : 0,
+            upiReceipts: mode === 'UPI' ? amt : 0,
+            cardReceipts: mode === 'CARD' ? amt : 0,
+            otherIncome: mode !== 'CASH' && mode !== 'UPI' && mode !== 'CARD' ? amt : 0,
+            totalExpenses: 0,
+            bankDeposit: 0,
+            closingCash: mode === 'CASH' ? opening + amt : opening,
+            cashDifference: 0,
+            notes: `Auto-created from recurring income: ${recurring.title}`,
+            createdById: recurring.createdById,
+          };
+
+          const created = await prisma.cashBook.create({
+            data: createData,
+          });
+
+          if (mode === 'UPI') {
+            await cashBookService._syncUpiToBank(created);
+          }
         }
       }
     }

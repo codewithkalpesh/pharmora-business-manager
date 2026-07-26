@@ -18,6 +18,29 @@ const DEFAULT_CATEGORIES = [
 
 class ExpenseService {
   async createExpense(data, file, userId) {
+    if (data.paymentMode === 'BOTH') {
+      const cashAmount = parseFloat(data.cashAmount || 0);
+      const upiAmount = parseFloat(data.upiAmount || 0);
+      let cashExp = null;
+      let upiExp = null;
+      if (cashAmount > 0) {
+        cashExp = await this.createExpense({
+          ...data,
+          amount: cashAmount,
+          paymentMode: 'CASH',
+        }, file, userId);
+      }
+      if (upiAmount > 0) {
+        upiExp = await this.createExpense({
+          ...data,
+          amount: upiAmount,
+          paymentMode: 'UPI',
+          bankAccountId: data.bankAccountId,
+        }, cashExp ? null : file, userId);
+      }
+      return upiExp || cashExp;
+    }
+
     // Seed default categories if none exist
     await this.ensureCategoriesSeeded();
 

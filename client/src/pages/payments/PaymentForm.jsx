@@ -3,18 +3,20 @@
 import { useState, useEffect } from 'react';
 import { purchaseApi } from '../../api/purchase.api';
 import { createPayment, updatePayment } from '../../api/payment.api';
+import { bankApi } from '../../api/bank.api';
 import { Loader2 } from 'lucide-react';
 import {
   FormField, inputBase, selectBase, cancelBtnStyle, submitBtnStyle,
   errorBannerStyle, formFooterStyle, useInputStyle,
 } from '../../components/common/FormField';
 
-const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER', 'OTHER'];
+const PAYMENT_MODES = ['CASH', 'UPI', 'BOTH'];
 const today = () => new Date().toISOString().split('T')[0];
 
 export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, prefillBillId = null, initialData = null }) {
   const [distributors, setDistributors] = useState([]);
   const [bills, setBills] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -26,7 +28,16 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
     paymentMode: initialData?.paymentMode || 'CASH',
     referenceNo: initialData?.referenceNo || '',
     notes: initialData?.notes || '',
+    cashAmount: '',
+    upiAmount: '',
+    bankAccountId: initialData?.bankAccountId || '',
   });
+
+  useEffect(() => {
+    bankApi.getAccounts().then((r) => {
+      setBankAccounts(r.data?.accounts || []);
+    });
+  }, []);
 
   useEffect(() => {
     purchaseApi.getDistributors({ limit: 200 }).then((r) => {
@@ -63,12 +74,40 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+
+    const totalAmount = parseFloat(form.amount || 0);
+    if (form.paymentMode === 'BOTH') {
+      const cash = parseFloat(form.cashAmount || 0);
+      const upi = parseFloat(form.upiAmount || 0);
+      if (Math.abs(cash + upi - totalAmount) > 0.01) {
+        setError('Cash and UPI amounts must sum up to the total payment amount.');
+        return;
+      }
+      if (upi > 0 && !form.bankAccountId) {
+        setError('Bank account is required for the UPI portion.');
+        return;
+      }
+    } else if (form.paymentMode === 'UPI') {
+      if (!form.bankAccountId) {
+        setError('Bank account is required for UPI payments.');
+        return;
+      }
+    }
+
     setLoading(true);
     try {
+      const payload = {
+        ...form,
+        amount: totalAmount,
+        cashAmount: form.paymentMode === 'BOTH' ? parseFloat(form.cashAmount) : null,
+        upiAmount: form.paymentMode === 'BOTH' ? parseFloat(form.upiAmount) : null,
+        bankAccountId: (form.paymentMode === 'UPI' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount) > 0)) ? form.bankAccountId : null,
+        billId: form.billId || null
+      };
       if (initialData) {
-        await updatePayment(initialData.id, { ...form, amount: parseFloat(form.amount), billId: form.billId || null });
+        await updatePayment(initialData.id, payload);
       } else {
-        await createPayment({ ...form, amount: parseFloat(form.amount), billId: form.billId || null });
+        await createPayment(payload);
       }
       onSuccess?.();
       onClose?.();
@@ -191,7 +230,7 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
         <FormField label="Payment Mode" error={null}>
           <select value={form.paymentMode} onChange={(e) => set('paymentMode', e.target.value)} style={selectBase}>
             {PAYMENT_MODES.map((m) => (
-              <option key={m} value={m}>{m.replace('_', ' ')}</option>
+              <option key={m} value={m}>{m === 'BOTH' ? 'Both (Cash & UPI)' : m}</option>
             ))}
           </select>
         </FormField>
@@ -204,6 +243,47 @@ export function PaymentForm({ onClose, onSuccess, prefillDistributorId = null, p
           />
         </FormField>
       </div>
+
+      {form.paymentMode === 'BOTH' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+          <FormField label="Cash Amount (₹) *" error={null}>
+            <input
+              type="number" step="0.01" placeholder="0.00"
+              value={form.cashAmount} required
+              onChange={(e) => set('cashAmount', e.target.value)}
+              style={inputBase} onFocus={focusOn} onBlur={focusOff}
+            />
+          </FormField>
+          <FormField label="UPI Amount (₹) *" error={null}>
+            <input
+              type="number" step="0.01" placeholder="0.00"
+              value={form.upiAmount} required
+              onChange={(e) => set('upiAmount', e.target.value)}
+              style={inputBase} onFocus={focusOn} onBlur={focusOff}
+            />
+          </FormField>
+        </div>
+      )}
+
+      {(form.paymentMode === 'UPI' || (form.paymentMode === 'BOTH' && parseFloat(form.upiAmount || 0) > 0)) && (
+        <div style={{ marginBottom: 12 }}>
+          <FormField label="Select Bank Account *" error={null}>
+            <select
+              value={form.bankAccountId}
+              onChange={(e) => set('bankAccountId', e.target.value)}
+              required
+              style={selectBase}
+            >
+              <option value="">Select Account</option>
+              {bankAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.bankName} ({a.accountName}) — ₹{Number(a.currentBalance).toFixed(2)}
+                </option>
+              ))}
+            </select>
+          </FormField>
+        </div>
+      )}
 
       {/* Notes */}
       <FormField label="Notes" error={null}>
