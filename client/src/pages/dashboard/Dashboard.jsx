@@ -104,7 +104,7 @@ export function Dashboard() {
       iconColor: '#ef4444',
       accentColor: '#ef4444',
       trend: -3.2,
-      onClick: () => navigate('/expenses?filter=today'),
+      onClick: () => navigate('/dashboard/expenses/history?filter=today'),
     },
     {
       label: 'Cash in Hand',
@@ -113,7 +113,7 @@ export function Dashboard() {
       iconBg: 'rgba(245,158,11,0.1)',
       iconColor: '#f59e0b',
       accentColor: '#f59e0b',
-      onClick: () => navigate('/cash'),
+      onClick: () => navigate('/dashboard/cash/history'),
     },
     {
       label: 'Bank Balance',
@@ -122,7 +122,7 @@ export function Dashboard() {
       iconBg: 'rgba(59,130,246,0.1)',
       iconColor: '#3b82f6',
       accentColor: '#3b82f6',
-      onClick: () => navigate('/banks'),
+      onClick: () => navigate('/dashboard/bank/history'),
     },
     {
       label: 'Distributor Pending',
@@ -150,7 +150,7 @@ export function Dashboard() {
       iconBg: 'rgba(6,182,212,0.1)',
       iconColor: '#06b6d4',
       accentColor: '#06b6d4',
-      onClick: () => navigate('/analytics'),
+      onClick: () => navigate('/dashboard/revenue/history'),
     },
     {
       label: 'Net Cash Flow',

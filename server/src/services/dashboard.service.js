@@ -407,4 +407,369 @@ const getExpenseByCategory = async (userId) => {
   return results;
 };
 
-module.exports = { getKPIs, getSalesTrend, getExpenseTrend, getExpenseByCategory };
+// ─── Dedicated History Services ─────────────────────────────────────────────
+
+const formatTime = (date) => {
+  const d = new Date(date);
+  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+};
+
+const parseDateFilter = (query) => {
+  let start, end;
+  if (query.startDate && query.endDate) {
+    start = new Date(query.startDate);
+    start.setHours(0, 0, 0, 0);
+    end = new Date(query.endDate);
+    end.setHours(23, 59, 59, 999);
+  } else if (query.month) {
+    const parts = query.month.split('-');
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    start = new Date(year, month - 1, 1, 0, 0, 0, 0);
+    end = new Date(year, month, 0, 23, 59, 59, 999);
+  } else if (query.year) {
+    const year = parseInt(query.year, 10);
+    start = new Date(year, 0, 1, 0, 0, 0, 0);
+    end = new Date(year, 11, 31, 23, 59, 59, 999);
+  } else {
+    // Default to full range if not filtered, or default month
+    start = new Date('2000-01-01');
+    end = new Date('2099-12-31');
+  }
+  return { start, end };
+};
+
+const getExpenseHistory = async (userId, query) => {
+  const page = parseInt(query.page, 10) || 1;
+  const limit = parseInt(query.limit, 10) || 30;
+  const skip = (page - 1) * limit;
+
+  const { start, end } = parseDateFilter(query);
+
+  const where = {
+    createdById: userId,
+    date: { gte: start, lte: end },
+  };
+
+  if (query.search) {
+    where.description = { contains: query.search, mode: 'insensitive' };
+  }
+
+  // Calculate cumulative running total chronologically across all user expenses up to date
+  const allUserExpenses = await prisma.expense.findMany({
+    where: { createdById: userId },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+    select: { id: true, amount: true },
+  });
+
+  const runningMap = new Map();
+  let cumulative = 0;
+  for (const exp of allUserExpenses) {
+    cumulative += Number(exp.amount);
+    runningMap.set(exp.id, cumulative);
+  }
+
+  const [expenses, totalCount, aggregateSum] = await Promise.all([
+    prisma.expense.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        category: true,
+        createdBy: { select: { name: true } },
+      },
+    }),
+    prisma.expense.count({ where }),
+    prisma.expense.aggregate({
+      where,
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const formattedData = expenses.map((exp) => ({
+    id: exp.id,
+    date: exp.date,
+    time: formatTime(exp.date),
+    category: exp.category?.name || 'Miscellaneous',
+    categoryColor: exp.category?.color || '#64748b',
+    description: exp.description,
+    amount: Number(exp.amount),
+    runningTotal: runningMap.get(exp.id) || Number(exp.amount),
+    addedBy: exp.createdBy?.name || 'Staff',
+  }));
+
+  const totalExpense = Number(aggregateSum._sum.amount || 0);
+
+  return {
+    summary: {
+      totalTransactions: totalCount,
+      totalExpense,
+    },
+    data: formattedData,
+    pagination: {
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+    },
+  };
+};
+
+const getCashHistory = async (userId, query) => {
+  const page = parseInt(query.page, 10) || 1;
+  const limit = parseInt(query.limit, 10) || 30;
+  const skip = (page - 1) * limit;
+
+  const { start, end } = parseDateFilter(query);
+
+  const where = {
+    createdById: userId,
+    date: { gte: start, lte: end },
+  };
+
+  const [cashBooks, totalCount, summaryAgg] = await Promise.all([
+    prisma.cashBook.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { date: 'desc' },
+    }),
+    prisma.cashBook.count({ where }),
+    prisma.cashBook.aggregate({
+      where,
+      _sum: {
+        cashSales: true,
+        totalExpenses: true,
+        bankDeposits: true,
+      },
+    }),
+  ]);
+
+  const formattedData = cashBooks.map((entry) => {
+    const opening = Number(entry.openingCash);
+    const sales = Number(entry.cashSales);
+    const expenses = Number(entry.totalExpenses);
+    const deposits = Number(entry.bankDeposits);
+    const withdrawn = Number(entry.cashWithdrawn || 0);
+    // Formula: Closing Cash = Opening Cash + Cash Sales + Cash Withdrawn - Cash Expenses - Cash Deposits
+    const closing = opening + sales + withdrawn - expenses - deposits;
+
+    return {
+      id: entry.id,
+      date: entry.date,
+      openingCash: opening,
+      cashSales: sales,
+      cashExpenses: expenses,
+      cashDeposits: deposits,
+      cashWithdrawn: withdrawn,
+      closingCash: closing,
+      difference: Number(entry.cashDifference),
+      notes: entry.notes,
+    };
+  });
+
+  const latestEntry = await prisma.cashBook.findFirst({
+    where: { createdById: userId },
+    orderBy: { date: 'desc' },
+  });
+
+  const summary = {
+    totalCashSales: Number(summaryAgg._sum.cashSales || 0),
+    totalCashExpenses: Number(summaryAgg._sum.totalExpenses || 0),
+    totalDeposits: Number(summaryAgg._sum.bankDeposits || 0),
+    currentCashBalance: latestEntry ? Number(latestEntry.closingCash) : 0,
+  };
+
+  return {
+    summary,
+    data: formattedData,
+    pagination: {
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+    },
+  };
+};
+
+const getBankHistory = async (userId, query) => {
+  const page = parseInt(query.page, 10) || 1;
+  const limit = parseInt(query.limit, 10) || 30;
+  const skip = (page - 1) * limit;
+
+  const { start, end } = parseDateFilter(query);
+
+  const where = {
+    createdById: userId,
+    date: { gte: start, lte: end },
+  };
+
+  // Group bank activity by day from CashBook & BankTransactions
+  const [cashBooks, totalCount, bankAccounts] = await Promise.all([
+    prisma.cashBook.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { date: 'desc' },
+    }),
+    prisma.cashBook.count({ where }),
+    prisma.bankAccount.findMany({
+      where: { createdById: userId, isActive: true },
+      select: { currentBalance: true },
+    }),
+  ]);
+
+  let totalUPICollection = 0;
+  let totalDeposits = 0;
+  let totalExpenses = 0;
+
+  const formattedData = cashBooks.map((entry) => {
+    const upi = Number(entry.upiReceipts);
+    const deposits = Number(entry.bankDeposits);
+    const expenses = Number(entry.bankExpenses || 0);
+    const withdrawal = Number(entry.cashWithdrawn || 0);
+
+    totalUPICollection += upi;
+    totalDeposits += deposits;
+    totalExpenses += expenses;
+
+    // Formula: Closing Bank Balance = Opening + UPI Collection + Cash Deposited - Bank Expense - Withdrawals
+    const opening = Number(entry.bankOpeningBalance || 0);
+    const closing = opening + upi + deposits - expenses - withdrawal;
+
+    return {
+      id: entry.id,
+      date: entry.date,
+      openingBalance: opening,
+      upiCollection: upi,
+      cashDeposited: deposits,
+      bankExpense: expenses,
+      bankWithdrawal: withdrawal,
+      closingBalance: closing,
+    };
+  });
+
+  const totalCurrentBankBalance = bankAccounts.reduce(
+    (acc, b) => acc + Number(b.currentBalance),
+    0
+  );
+
+  return {
+    summary: {
+      totalUPICollection,
+      totalDeposits,
+      totalExpenses,
+      currentBankBalance: totalCurrentBankBalance,
+    },
+    data: formattedData,
+    pagination: {
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+    },
+  };
+};
+
+const getRevenueHistory = async (userId, query) => {
+  const page = parseInt(query.page, 10) || 1;
+  const limit = parseInt(query.limit, 10) || 30;
+  const skip = (page - 1) * limit;
+
+  const { start, end } = parseDateFilter(query);
+
+  const where = {
+    createdById: userId,
+    date: { gte: start, lte: end },
+  };
+
+  const [cashBooks, totalCount] = await Promise.all([
+    prisma.cashBook.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { date: 'desc' },
+    }),
+    prisma.cashBook.count({ where }),
+  ]);
+
+  let cashTotal = 0;
+  let upiTotal = 0;
+  let cardTotal = 0;
+  let creditTotal = 0;
+
+  const formattedData = cashBooks.map((entry) => {
+    const cash = Number(entry.cashSales);
+    const upi = Number(entry.upiReceipts);
+    const card = Number(entry.cardReceipts);
+    const credit = Number(entry.creditSales || 0);
+    const total = cash + upi + card + credit;
+
+    cashTotal += cash;
+    upiTotal += upi;
+    cardTotal += card;
+    creditTotal += credit;
+
+    return {
+      id: entry.id,
+      date: entry.date,
+      cashSales: cash,
+      upiSales: upi,
+      cardSales: card,
+      creditSales: credit,
+      totalRevenue: total,
+    };
+  });
+
+  const totalMonthlyRevenue = cashTotal + upiTotal + cardTotal + creditTotal;
+  const digitalRevenue = upiTotal + cardTotal;
+  const daysCount = formattedData.length || 1;
+  const avgDailyRevenue = Math.round(totalMonthlyRevenue / daysCount);
+
+  // Chart datasets
+  const dailyRevenueTrend = [...formattedData].reverse().map((d) => ({
+    date: d.date ? new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '',
+    totalRevenue: d.totalRevenue,
+    cashSales: d.cashSales,
+    digitalSales: d.upiSales + d.cardSales,
+  }));
+
+  const cashVsDigital = [
+    { name: 'Cash Sales', value: cashTotal, fill: '#10b981' },
+    { name: 'Digital Sales (UPI & Card)', value: digitalRevenue, fill: '#3b82f6' },
+    { name: 'Credit Sales', value: creditTotal, fill: '#f59e0b' },
+  ];
+
+  return {
+    summary: {
+      monthlyRevenue: totalMonthlyRevenue,
+      cashRevenue: cashTotal,
+      digitalRevenue,
+      avgDailyRevenue,
+    },
+    charts: {
+      dailyRevenueTrend,
+      cashVsDigital,
+    },
+    data: formattedData,
+    pagination: {
+      total: totalCount,
+      page,
+      limit,
+      totalPages: Math.ceil(totalCount / limit),
+    },
+  };
+};
+
+module.exports = {
+  getKPIs,
+  getSalesTrend,
+  getExpenseTrend,
+  getExpenseByCategory,
+  getExpenseHistory,
+  getCashHistory,
+  getBankHistory,
+  getRevenueHistory,
+};
+

@@ -11,4 +11,9 @@ router.get('/sales-trend', dashboardController.getSalesTrend);
 router.get('/expense-trend', dashboardController.getExpenseTrend);
 router.get('/expense-by-category', dashboardController.getExpenseByCategory);
 
+router.get('/expenses/history', dashboardController.getExpenseHistory);
+router.get('/cash/history', dashboardController.getCashHistory);
+router.get('/bank/history', dashboardController.getBankHistory);
+router.get('/revenue/history', dashboardController.getRevenueHistory);
+
 module.exports = router;

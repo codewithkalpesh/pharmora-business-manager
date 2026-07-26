@@ -38,4 +38,50 @@ const getExpenseByCategory = async (req, res, next) => {
   }
 };
 
-module.exports = { getKPIs, getSalesTrend, getExpenseTrend, getExpenseByCategory };
+const getExpenseHistory = async (req, res, next) => {
+  try {
+    const data = await dashboardService.getExpenseHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getCashHistory = async (req, res, next) => {
+  try {
+    const data = await dashboardService.getCashHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getBankHistory = async (req, res, next) => {
+  try {
+    const data = await dashboardService.getBankHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getRevenueHistory = async (req, res, next) => {
+  try {
+    const data = await dashboardService.getRevenueHistory(req.user.id, req.query);
+    return res.status(200).json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = {
+  getKPIs,
+  getSalesTrend,
+  getExpenseTrend,
+  getExpenseByCategory,
+  getExpenseHistory,
+  getCashHistory,
+  getBankHistory,
+  getRevenueHistory,
+};
+

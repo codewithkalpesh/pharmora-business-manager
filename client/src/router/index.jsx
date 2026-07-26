@@ -18,6 +18,10 @@ import { Reports } from '../pages/reports/Reports';
 import { Analytics } from '../pages/analytics/Analytics';
 import { Notifications } from '../pages/notifications/Notifications';
 import { Settings } from '../pages/settings/Settings';
+import { ExpenseHistory } from '../pages/history/ExpenseHistory';
+import { CashHistory } from '../pages/history/CashHistory';
+import { BankHistory } from '../pages/history/BankHistory';
+import { RevenueHistory } from '../pages/history/RevenueHistory';
 import { NotFound } from '../pages/NotFound';
 
 export const router = createBrowserRouter([
@@ -47,6 +51,11 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'dashboard', element: <Dashboard /> },
+      { path: 'dashboard/expenses/history', element: <ExpenseHistory /> },
+      { path: 'dashboard/expenses/today', element: <ExpenseHistory /> },
+      { path: 'dashboard/cash/history', element: <CashHistory /> },
+      { path: 'dashboard/bank/history', element: <BankHistory /> },
+      { path: 'dashboard/revenue/history', element: <RevenueHistory /> },
       { path: 'cash', element: <CashBook /> },
       { path: 'expenses', element: <Expenses /> },
       { path: 'purchases', element: <Purchases /> },
