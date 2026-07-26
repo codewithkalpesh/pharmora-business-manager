@@ -190,7 +190,7 @@ class PurchaseService {
       await paymentService._recalcDistributorBills(bill.distributorId);
     }
  
-    return bill;
+    return this._enrichBillWithPaymentInfo(bill);
   }
 
   async getBills(query, userId) {
@@ -238,8 +238,12 @@ class PurchaseService {
       orderBy,
     });
 
+    const enrichedBills = await Promise.all(
+      bills.map(bill => this._enrichBillWithPaymentInfo(bill))
+    );
+
     return {
-      bills,
+      bills: enrichedBills,
       pagination: {
         total,
         page,
@@ -373,7 +377,7 @@ class PurchaseService {
     const paymentService = require('./payment.service');
     await paymentService._recalcDistributorBills(bill.distributorId);
 
-    return bill;
+    return this._enrichBillWithPaymentInfo(bill);
   }
 
   async deleteBill(id, userId) {
@@ -583,6 +587,60 @@ class PurchaseService {
         },
       });
     }
+  }
+
+  async _enrichBillWithPaymentInfo(bill) {
+    if (!bill) return bill;
+    const prisma = require('../config/prisma');
+    
+    // Find the payments for this bill
+    const payments = await prisma.distributorPayment.findMany({
+      where: { billId: bill.id }
+    });
+
+    // Reconstruct paymentMode, cashAmount, upiAmount
+    let paymentMode = 'CASH';
+    let cashAmount = 0;
+    let upiAmount = 0;
+
+    if (payments.length > 0) {
+      const modes = payments.map(p => p.paymentMode);
+      const hasCash = modes.includes('CASH');
+      const hasUpi = modes.includes('UPI');
+
+      if (hasCash && hasUpi) {
+        paymentMode = 'BOTH';
+        cashAmount = Number(payments.find(p => p.paymentMode === 'CASH')?.amount || 0);
+        upiAmount = Number(payments.find(p => p.paymentMode === 'UPI')?.amount || 0);
+      } else {
+        const mainPayment = payments[0];
+        paymentMode = mainPayment.paymentMode;
+        if (paymentMode === 'CASH') {
+          cashAmount = Number(mainPayment.amount);
+        } else if (paymentMode === 'UPI') {
+          upiAmount = Number(mainPayment.amount);
+        }
+      }
+    }
+
+    // Reconstruct bankAccountId from BankTransaction description tag
+    let bankAccountId = '';
+    const tag = `[PurchaseBill:${bill.id}]`;
+    const txn = await prisma.bankTransaction.findFirst({
+      where: { description: { contains: tag } },
+      select: { accountId: true }
+    });
+    if (txn) {
+      bankAccountId = txn.accountId;
+    }
+
+    return {
+      ...bill,
+      paymentMode,
+      bankAccountId,
+      cashAmount,
+      upiAmount
+    };
   }
 }
 

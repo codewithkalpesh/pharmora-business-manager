@@ -98,6 +98,14 @@ async function recalculateAccountRunningBalances(accountId) {
       });
     }
   }
+
+  // Update currentBalance of the bank account to match the final transaction balance
+  if (Number(account.currentBalance) !== balance) {
+    await basePrisma.bankAccount.update({
+      where: { id: accountId },
+      data: { currentBalance: balance }
+    });
+  }
 }
 
 module.exports = prisma;
