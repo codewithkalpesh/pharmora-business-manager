@@ -1,5 +1,5 @@
 // src/pages/expenses/Expenses.jsx
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, Edit, Trash2, Calendar, FileText, Search, Settings,
@@ -13,6 +13,7 @@ import CategoriesModal from './CategoriesModal';
 import { expenseApi } from '../../api/expense.api';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { format } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 
 export function Expenses() {
   const queryClient = useQueryClient();
@@ -93,7 +94,14 @@ export function Expenses() {
     queryClient.invalidateQueries(['expenses-stats']);
   };
 
-  const expenses = data?.expenses || [];
+  const expenses = useMemo(() => {
+    const list = data?.expenses || [];
+    let running = 0;
+    return list.map((exp) => {
+      running += Number(exp.amount);
+      return { ...exp, runningBalance: running };
+    });
+  }, [data]);
   const pagination = data?.pagination || {};
 
   // Top category computation
@@ -264,6 +272,7 @@ export function Expenses() {
                   <th className="p-4">Description</th>
                   <th className="p-4">Category</th>
                   <th className="p-4 text-right">Amount</th>
+                  <th className="p-4">Running Bal.</th>
                   <th className="p-4">Payment Mode</th>
                   <th className="p-4 text-center">Receipt</th>
                   <th className="p-4 text-center">Actions</th>
@@ -292,6 +301,9 @@ export function Expenses() {
                     </td>
                     <td className="p-4 text-right text-red-400 font-semibold font-mono">
                       - {formatCurrency(Number(exp.amount))}
+                    </td>
+                    <td className="p-4 text-right font-medium text-slate-300">
+                      {formatCurrency(Number(exp.runningBalance))}
                     </td>
                     <td className="p-4">
                       <span className="inline-block rounded px-2 py-0.5 text-xs bg-slate-800/60 text-slate-400">
