@@ -16,6 +16,7 @@ import { dashboardApi } from '../../api/dashboard.api';
 import { formatCurrency, formatDate } from '../../lib/utils';
 import { useAuth } from '../../store/AuthContext';
 import { format } from 'date-fns';
+import { HistoryModal } from '../../components/history/HistoryModal';
 
 const GREETING = () => {
   const h = new Date().getHours();
@@ -61,6 +62,7 @@ export function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [historyModalType, setHistoryModalType] = useState(null);
 
   const { data: kpiData, isLoading: kpisLoading, refetch: refetchKPIs } = useQuery({
     queryKey: ['dashboard-kpis', selectedDate],
@@ -104,7 +106,7 @@ export function Dashboard() {
       iconColor: '#ef4444',
       accentColor: '#ef4444',
       trend: -3.2,
-      onClick: () => navigate('/dashboard/expenses/history?filter=today'),
+      onClick: () => setHistoryModalType('expenses'),
     },
     {
       label: 'Cash in Hand',
@@ -113,7 +115,7 @@ export function Dashboard() {
       iconBg: 'rgba(245,158,11,0.1)',
       iconColor: '#f59e0b',
       accentColor: '#f59e0b',
-      onClick: () => navigate('/dashboard/cash/history'),
+      onClick: () => setHistoryModalType('cash'),
     },
     {
       label: 'Bank Balance',
@@ -122,7 +124,7 @@ export function Dashboard() {
       iconBg: 'rgba(59,130,246,0.1)',
       iconColor: '#3b82f6',
       accentColor: '#3b82f6',
-      onClick: () => navigate('/dashboard/bank/history'),
+      onClick: () => setHistoryModalType('bank'),
     },
     {
       label: 'Distributor Pending',
@@ -150,7 +152,7 @@ export function Dashboard() {
       iconBg: 'rgba(6,182,212,0.1)',
       iconColor: '#06b6d4',
       accentColor: '#06b6d4',
-      onClick: () => navigate('/dashboard/revenue/history'),
+      onClick: () => setHistoryModalType('revenue'),
     },
     {
       label: 'Net Cash Flow',
@@ -165,6 +167,12 @@ export function Dashboard() {
 
   return (
     <div className="fade-in">
+      {/* History Modal Overlay */}
+      <HistoryModal
+        isOpen={!!historyModalType}
+        onClose={() => setHistoryModalType(null)}
+        type={historyModalType || 'expenses'}
+      />
       {/* Header */}
       <PageHeader
         title={`${GREETING()}, ${user?.name?.split(' ')[0] || 'there'} 👋`}
