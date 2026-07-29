@@ -39,7 +39,7 @@ const createDistributorSchema = z.object({
 const updateDistributorSchema = createDistributorSchema.partial();
 
 const createBillSchema = z.object({
-  invoiceNo: z.string().trim().nonempty('Invoice number is required'),
+  invoiceNo: optionalString,
   distributorId: z.string().nonempty('Distributor is required'),
   billDate: z.coerce.date(),
   dueDate: z.coerce.date().optional(),

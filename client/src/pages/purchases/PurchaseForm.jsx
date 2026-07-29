@@ -14,7 +14,7 @@ import {
 } from '../../components/common/FormField';
 
 const billSchema = z.object({
-  invoiceNo: z.string().nonempty('Invoice number is required'),
+  invoiceNo: z.string().trim().optional().transform((val) => (typeof val === 'string' && val === '' ? undefined : val)),
   distributorId: z.string().nonempty('Distributor is required'),
   billDate: z.string().nonempty('Bill date is required'),
   dueDate: z.string().nonempty('Due date is required'),
@@ -150,7 +150,7 @@ export default function PurchaseForm({ initialData, onSuccess, onClose }) {
 
       {/* Row 1: Invoice + Distributor */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-        <FormField label="Invoice Number *" error={errors.invoiceNo?.message}>
+        <FormField label="Invoice Number" error={errors.invoiceNo?.message}>
           <input type="text" placeholder="e.g. GST-10394" {...register('invoiceNo')} {...inp()} />
         </FormField>
         <FormField label="Distributor / Supplier *" error={errors.distributorId?.message}>

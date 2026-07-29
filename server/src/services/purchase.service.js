@@ -83,9 +83,12 @@ class PurchaseService {
 
   // Purchase Bill Services
   async createBill(data, userId) {
-    const existingBill = await purchaseRepository.findBillByInvoice(data.invoiceNo, data.distributorId);
-    if (existingBill) {
-      throw new ApiError(400, `Invoice #${data.invoiceNo} is already logged for this distributor.`);
+    let existingBill = null;
+    if (data.invoiceNo) {
+      existingBill = await purchaseRepository.findBillByInvoice(data.invoiceNo, data.distributorId);
+      if (existingBill) {
+        throw new ApiError(400, `Invoice #${data.invoiceNo} is already logged for this distributor.`);
+      }
     }
 
     const distributor = await purchaseRepository.findDistributorById(data.distributorId);
@@ -111,7 +114,7 @@ class PurchaseService {
     }
 
     const payload = {
-      invoiceNo: data.invoiceNo,
+      invoiceNo: data.invoiceNo || null,
       distributorId: data.distributorId,
       billDate,
       dueDate,
@@ -260,6 +263,15 @@ class PurchaseService {
     }
     if (existing.createdById !== userId) {
       throw new ApiError(403, 'You do not have permission to update this bill.');
+    }
+
+    const targetDistributorId = data.distributorId || existing.distributorId;
+    const targetInvoiceNo = data.invoiceNo || existing.invoiceNo;
+    if (targetInvoiceNo) {
+      const duplicateBill = await purchaseRepository.findBillByInvoice(targetInvoiceNo, targetDistributorId);
+      if (duplicateBill && duplicateBill.id !== id) {
+        throw new ApiError(400, `Invoice #${targetInvoiceNo} is already logged for this distributor.`);
+      }
     }
 
     const subtotal = data.subtotal !== undefined ? parseFloat(data.subtotal) : Number(existing.subtotal);
