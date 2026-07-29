@@ -105,15 +105,17 @@ app.use(notFound);
 app.use(errorHandler);
 
 const { initRecurringJob } = require('./jobs/recurring.job');
+const { initMonthlyReportJob } = require('./jobs/monthlyReportJob');
 
-// ── Start Server ──────────────────────────────────────────────────────────────
+// ── Start Server ────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`\n🚀 Pharmora API running on http://localhost:${PORT}`);
   console.log(`   Environment : ${process.env.NODE_ENV || 'development'}`);
   console.log(`   Health check: http://localhost:${PORT}/health\n`);
   
-  // Start the recurring transactions background scheduler
+  // Start background schedulers
   initRecurringJob();
+  initMonthlyReportJob();
 });
 
 module.exports = app;
