@@ -1,10 +1,383 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Target, PlusCircle, Calendar, ArrowRight, ShoppingCart, Receipt, HandCoins, Pin } from 'lucide-react';
+import {
+  Target, PlusCircle, ArrowRight, ShoppingCart, Receipt,
+  HandCoins, Flame, Clock, TrendingUp, Zap,
+} from 'lucide-react';
 import differenceInDays from 'date-fns/differenceInDays';
 import { goalApi } from '../../api/goal.api';
 import AddMoneyModal from '../../pages/goals/AddMoneyModal';
+
+/* ─── Theme palette per card slot ─── */
+const THEMES = [
+  {
+    id: 'violet',
+    gradient: 'linear-gradient(135deg, #6d28d9 0%, #7c3aed 50%, #8b5cf6 100%)',
+    glow: 'rgba(139, 92, 246, 0.35)',
+    chip: 'rgba(255,255,255,0.18)',
+    chipText: '#f3e8ff',
+    bar: '#c4b5fd',
+    barTrack: 'rgba(255,255,255,0.15)',
+    daysUrgent: '#fde68a',
+    daysNormal: '#ddd6fe',
+    icon: '#ede9fe',
+    title: '#ffffff',
+    sub: 'rgba(255,255,255,0.7)',
+    amt: '#ffffff',
+    amtSub: 'rgba(255,255,255,0.65)',
+    btnBg: 'rgba(255,255,255,0.15)',
+    btnHover: 'rgba(255,255,255,0.25)',
+    btnText: '#ffffff',
+    btnBorder: 'rgba(255,255,255,0.25)',
+  },
+  {
+    id: 'emerald',
+    gradient: 'linear-gradient(135deg, #065f46 0%, #059669 50%, #10b981 100%)',
+    glow: 'rgba(16, 185, 129, 0.35)',
+    chip: 'rgba(255,255,255,0.18)',
+    chipText: '#d1fae5',
+    bar: '#6ee7b7',
+    barTrack: 'rgba(255,255,255,0.15)',
+    daysUrgent: '#fde68a',
+    daysNormal: '#a7f3d0',
+    icon: '#d1fae5',
+    title: '#ffffff',
+    sub: 'rgba(255,255,255,0.7)',
+    amt: '#ffffff',
+    amtSub: 'rgba(255,255,255,0.65)',
+    btnBg: 'rgba(255,255,255,0.15)',
+    btnHover: 'rgba(255,255,255,0.25)',
+    btnText: '#ffffff',
+    btnBorder: 'rgba(255,255,255,0.25)',
+  },
+  {
+    id: 'rose',
+    gradient: 'linear-gradient(135deg, #9f1239 0%, #e11d48 50%, #fb7185 100%)',
+    glow: 'rgba(225, 29, 72, 0.35)',
+    chip: 'rgba(255,255,255,0.18)',
+    chipText: '#ffe4e6',
+    bar: '#fda4af',
+    barTrack: 'rgba(255,255,255,0.15)',
+    daysUrgent: '#fef08a',
+    daysNormal: '#fecdd3',
+    icon: '#ffe4e6',
+    title: '#ffffff',
+    sub: 'rgba(255,255,255,0.7)',
+    amt: '#ffffff',
+    amtSub: 'rgba(255,255,255,0.65)',
+    btnBg: 'rgba(255,255,255,0.15)',
+    btnHover: 'rgba(255,255,255,0.25)',
+    btnText: '#ffffff',
+    btnBorder: 'rgba(255,255,255,0.25)',
+  },
+  {
+    id: 'amber',
+    gradient: 'linear-gradient(135deg, #92400e 0%, #d97706 50%, #fbbf24 100%)',
+    glow: 'rgba(217, 119, 6, 0.35)',
+    chip: 'rgba(255,255,255,0.18)',
+    chipText: '#fef3c7',
+    bar: '#fcd34d',
+    barTrack: 'rgba(255,255,255,0.15)',
+    daysUrgent: '#fef08a',
+    daysNormal: '#fde68a',
+    icon: '#fef3c7',
+    title: '#ffffff',
+    sub: 'rgba(255,255,255,0.7)',
+    amt: '#ffffff',
+    amtSub: 'rgba(255,255,255,0.65)',
+    btnBg: 'rgba(255,255,255,0.15)',
+    btnHover: 'rgba(255,255,255,0.25)',
+    btnText: '#ffffff',
+    btnBorder: 'rgba(255,255,255,0.25)',
+  },
+  {
+    id: 'cyan',
+    gradient: 'linear-gradient(135deg, #164e63 0%, #0891b2 50%, #22d3ee 100%)',
+    glow: 'rgba(8, 145, 178, 0.35)',
+    chip: 'rgba(255,255,255,0.18)',
+    chipText: '#cffafe',
+    bar: '#67e8f9',
+    barTrack: 'rgba(255,255,255,0.15)',
+    daysUrgent: '#fde68a',
+    daysNormal: '#a5f3fc',
+    icon: '#cffafe',
+    title: '#ffffff',
+    sub: 'rgba(255,255,255,0.7)',
+    amt: '#ffffff',
+    amtSub: 'rgba(255,255,255,0.65)',
+    btnBg: 'rgba(255,255,255,0.15)',
+    btnHover: 'rgba(255,255,255,0.25)',
+    btnText: '#ffffff',
+    btnBorder: 'rgba(255,255,255,0.25)',
+  },
+];
+
+const CAT_META = {
+  PURCHASE: { label: 'Purchase', Icon: ShoppingCart },
+  EXPENSE: { label: 'Expense', Icon: Receipt },
+  BORROWED_MONEY: { label: 'Borrowed', Icon: HandCoins },
+  GENERAL: { label: 'Goal', Icon: Target },
+};
+
+function UrgencyBadge({ daysLeft, theme }) {
+  const isOverdue = daysLeft < 0;
+  const isDueToday = daysLeft === 0;
+  const isUrgent = daysLeft <= 2 && daysLeft >= 0;
+
+  const color = isOverdue || isDueToday ? theme.daysUrgent : theme.daysNormal;
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 8px',
+        borderRadius: 20,
+        background: 'rgba(0,0,0,0.25)',
+        color,
+        fontSize: '0.6875rem',
+        fontWeight: 800,
+        letterSpacing: '0.02em',
+        backdropFilter: 'blur(4px)',
+        border: `1px solid ${color}30`,
+      }}
+    >
+      {(isOverdue || isDueToday || isUrgent) && <Flame size={10} style={{ color }} />}
+      {isOverdue
+        ? `${Math.abs(daysLeft)}d Overdue`
+        : isDueToday
+        ? 'Due Today!'
+        : `${daysLeft}d left`}
+    </div>
+  );
+}
+
+function GoalCard({ goal, index, onAddMoney }) {
+  const [hovered, setHovered] = useState(false);
+  const theme = THEMES[index % THEMES.length];
+  const target = Number(goal.targetAmount);
+  const saved = Number(goal.savedAmount);
+  const pct = target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0;
+  const daysLeft = differenceInDays(new Date(goal.targetDate), new Date());
+  const catInfo = CAT_META[goal.category] || CAT_META.GENERAL;
+  const { Icon } = catInfo;
+  const isCompleted = pct >= 100;
+  const subLabel =
+    goal.distributor?.name ||
+    goal.borrowedMoney?.personName ||
+    goal.expenseCategory?.name ||
+    null;
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: theme.gradient,
+        borderRadius: 20,
+        padding: '18px 18px 16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        boxShadow: hovered
+          ? `0 20px 40px -8px ${theme.glow}, 0 0 0 1px rgba(255,255,255,0.08)`
+          : `0 8px 24px -4px ${theme.glow}, 0 0 0 1px rgba(255,255,255,0.06)`,
+        transform: hovered ? 'translateY(-4px) scale(1.012)' : 'translateY(0) scale(1)',
+        transition: 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        cursor: 'default',
+        position: 'relative',
+        overflow: 'hidden',
+        minHeight: 200,
+      }}
+    >
+      {/* Decorative orb */}
+      <div
+        style={{
+          position: 'absolute',
+          top: -30,
+          right: -20,
+          width: 100,
+          height: 100,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.07)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: -20,
+          left: -15,
+          width: 70,
+          height: 70,
+          borderRadius: '50%',
+          background: 'rgba(255,255,255,0.05)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Top Row: Category chip + Days Badge */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 5,
+            padding: '4px 10px',
+            borderRadius: 20,
+            background: theme.chip,
+            color: theme.chipText,
+            fontSize: '0.6875rem',
+            fontWeight: 800,
+            letterSpacing: '0.05em',
+            textTransform: 'uppercase',
+            backdropFilter: 'blur(4px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+        >
+          <Icon size={11} />
+          {catInfo.label}
+        </div>
+
+        {isCompleted ? (
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '3px 8px',
+              borderRadius: 20,
+              background: 'rgba(0,0,0,0.25)',
+              color: '#bbf7d0',
+              fontSize: '0.6875rem',
+              fontWeight: 800,
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <Zap size={10} /> Done 🎉
+          </div>
+        ) : (
+          <UrgencyBadge daysLeft={daysLeft} theme={theme} />
+        )}
+      </div>
+
+      {/* Title */}
+      <div
+        style={{
+          fontSize: '0.9375rem',
+          fontWeight: 800,
+          color: theme.title,
+          lineHeight: 1.3,
+          marginBottom: subLabel ? 4 : 10,
+          letterSpacing: '-0.01em',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        }}
+      >
+        {goal.title || catInfo.label + ' Goal'}
+      </div>
+
+      {/* Sub-label (distributor / payee / category) */}
+      {subLabel && (
+        <div
+          style={{
+            fontSize: '0.75rem',
+            color: theme.sub,
+            marginBottom: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <Clock size={11} style={{ opacity: 0.7 }} />
+          {subLabel}
+        </div>
+      )}
+
+      {/* Amounts */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 8 }}>
+        <div>
+          <div style={{ fontSize: '0.6875rem', color: theme.amtSub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 1 }}>
+            Saved
+          </div>
+          <div style={{ fontSize: '1.125rem', fontWeight: 900, color: theme.amt, lineHeight: 1 }}>
+            ₹{saved.toLocaleString('en-IN')}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: '0.6875rem', color: theme.amtSub, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 1 }}>
+            Target
+          </div>
+          <div style={{ fontSize: '0.875rem', fontWeight: 800, color: theme.amt, opacity: 0.9 }}>
+            ₹{target.toLocaleString('en-IN')}
+          </div>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ marginBottom: 14 }}>
+        <div
+          style={{
+            height: 7,
+            borderRadius: 10,
+            background: theme.barTrack,
+            overflow: 'hidden',
+            position: 'relative',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: `${pct}%`,
+              background: theme.bar,
+              borderRadius: 10,
+              transition: 'width 0.6s cubic-bezier(0.4,0,0.2,1)',
+              boxShadow: `0 0 8px ${theme.bar}80`,
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+          <span style={{ fontSize: '0.6875rem', fontWeight: 800, color: theme.bar }}>
+            {pct}% funded
+          </span>
+        </div>
+      </div>
+
+      {/* Add Money Button */}
+      {!isCompleted && (
+        <button
+          onClick={() => onAddMoney(goal)}
+          style={{
+            width: '100%',
+            padding: '9px 14px',
+            borderRadius: 12,
+            border: `1.5px solid ${theme.btnBorder}`,
+            background: hovered ? theme.btnHover : theme.btnBg,
+            color: theme.btnText,
+            fontSize: '0.8125rem',
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 7,
+            backdropFilter: 'blur(6px)',
+            transition: 'background 0.2s ease',
+            letterSpacing: '0.01em',
+            marginTop: 'auto',
+          }}
+        >
+          <PlusCircle size={15} />
+          Add Money
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function GoalStickyNotes() {
   const queryClient = useQueryClient();
@@ -21,135 +394,91 @@ export function GoalStickyNotes() {
 
   if (isLoading || activeGoals.length === 0) return null;
 
-  const categoryIcons = {
-    PURCHASE: ShoppingCart,
-    EXPENSE: Receipt,
-    BORROWED_MONEY: HandCoins,
-    GENERAL: Target,
-  };
-
-  const stickyThemes = [
-    { bg: '#fef9c3', border: '#fef08a', text: '#713f12', tagBg: '#fef08a', tagText: '#854d0e', barBg: '#eab308' }, // Yellow
-    { bg: '#ecfeff', border: '#a5f3fc', text: '#164e63', tagBg: '#cff4fc', tagText: '#0e7490', barBg: '#06b6d4' }, // Cyan
-    { bg: '#f0fdf4', border: '#bbf7d0', text: '#14532d', tagBg: '#dcfce7', tagText: '#15803d', barBg: '#10b981' }, // Green
-    { bg: '#fdf2f8', border: '#fbcfe8', text: '#831843', tagBg: '#fce7f3', tagText: '#be185d', barBg: '#ec4899' }, // Pink
-  ];
-
   return (
-    <div className="mb-6">
-      {/* Header Bar */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <Pin size={18} className="text-amber-500 transform -rotate-12" />
-          <h2 className="text-sm font-extrabold text-slate-200 tracking-wide uppercase">
-            Upcoming Payment Goals 📌
-          </h2>
-          <span className="bg-amber-500/10 text-amber-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/20">
-            {activeGoals.length} Active
-          </span>
+    <div style={{ marginBottom: 28 }}>
+      {/* ── Section Header ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 4px 12px rgba(245,158,11,0.35)',
+              fontSize: 17,
+            }}
+          >
+            📌
+          </div>
+          <div>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.01em' }}>
+              Upcoming Payment Goals
+            </div>
+            <div style={{ fontSize: '0.6875rem', color: '#64748b', fontWeight: 500 }}>
+              {activeGoals.length} active goal{activeGoals.length > 1 ? 's' : ''} — stay on track
+            </div>
+          </div>
         </div>
 
         <button
           onClick={() => navigate('/goals')}
-          className="text-xs font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 14px',
+            borderRadius: 10,
+            border: '1px solid rgba(100,116,139,0.25)',
+            background: 'rgba(30,41,59,0.8)',
+            color: '#94a3b8',
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            letterSpacing: '0.01em',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = '#e2e8f0';
+            e.currentTarget.style.borderColor = 'rgba(100,116,139,0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = '#94a3b8';
+            e.currentTarget.style.borderColor = 'rgba(100,116,139,0.25)';
+          }}
         >
-          View All Goals 🎯
-          <ArrowRight size={14} />
+          <TrendingUp size={13} />
+          View All Goals
+          <ArrowRight size={13} />
         </button>
       </div>
 
-      {/* Sticky Notes Scroll Row / Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {activeGoals.map((goal, index) => {
-          const theme = stickyThemes[index % stickyThemes.length];
-          const target = Number(goal.targetAmount);
-          const saved = Number(goal.savedAmount);
-          const pct = target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0;
-          const daysLeft = differenceInDays(new Date(goal.targetDate), new Date());
-          const Icon = categoryIcons[goal.category] || Target;
-
-          return (
-            <div
-              key={goal.id}
-              style={{
-                backgroundColor: theme.bg,
-                borderColor: theme.border,
-                color: theme.text,
-                transform: index % 2 === 0 ? 'rotate(-0.8deg)' : 'rotate(0.8deg)',
-              }}
-              className="relative p-4 rounded-2xl border-2 shadow-md hover:shadow-xl hover:scale-[1.02] transition-all flex flex-col justify-between"
-            >
-              {/* Pushpin decor */}
-              <div className="absolute -top-2.5 right-4 text-amber-600 drop-shadow-sm">
-                📌
-              </div>
-
-              <div>
-                {/* Category & Urgency Badge */}
-                <div className="flex items-center justify-between gap-1 mb-2">
-                  <span
-                    style={{ backgroundColor: theme.tagBg, color: theme.tagText }}
-                    className="px-2 py-0.5 rounded-md text-[10px] font-extrabold flex items-center gap-1 uppercase tracking-wider"
-                  >
-                    <Icon size={12} />
-                    {goal.category}
-                  </span>
-
-                  <span
-                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
-                      daysLeft < 0
-                        ? 'bg-red-500 text-white'
-                        : daysLeft === 0
-                        ? 'bg-amber-500 text-white'
-                        : 'bg-black/10 text-slate-800'
-                    }`}
-                  >
-                    {daysLeft < 0
-                      ? `${Math.abs(daysLeft)}d Overdue`
-                      : daysLeft === 0
-                      ? 'Due Today!'
-                      : `${daysLeft}d left`}
-                  </span>
-                </div>
-
-                {/* Title */}
-                <h3 className="font-extrabold text-sm leading-snug line-clamp-2 mb-1" style={{ color: theme.text }}>
-                  {goal.title}
-                </h3>
-
-                {/* Subtitle / Payee info */}
-                <p className="text-[11px] opacity-80 mb-3 truncate">
-                  {goal.distributor?.name || goal.borrowedMoney?.personName || goal.expenseCategory?.name || 'Payment Goal'}
-                </p>
-
-                {/* Progress Bar & Amounts */}
-                <div className="space-y-1 mb-3">
-                  <div className="flex justify-between text-[11px] font-bold">
-                    <span>Saved: ₹{saved.toLocaleString('en-IN')}</span>
-                    <span>Target: ₹{target.toLocaleString('en-IN')} ({pct}%)</span>
-                  </div>
-
-                  <div className="w-full bg-black/10 h-2 rounded-full overflow-hidden">
-                    <div
-                      style={{ width: `${pct}%`, backgroundColor: theme.barBg }}
-                      className="h-full rounded-full transition-all duration-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Add Money Button */}
-              <button
-                onClick={() => setSelectedGoalForMoney(goal)}
-                style={{ backgroundColor: '#0f172a', color: '#ffffff' }}
-                className="w-full py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 shadow-sm hover:opacity-90 transition-opacity mt-2"
-              >
-                <PlusCircle size={14} className="text-emerald-400" />
-                Add Money ➕
-              </button>
-            </div>
-          );
-        })}
+      {/* ── Cards Grid ── */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))',
+          gap: 16,
+        }}
+      >
+        {activeGoals.map((goal, index) => (
+          <GoalCard
+            key={goal.id}
+            goal={goal}
+            index={index}
+            onAddMoney={(g) => setSelectedGoalForMoney(g)}
+          />
+        ))}
       </div>
 
       {/* Add Money Modal */}
@@ -162,6 +491,7 @@ export function GoalStickyNotes() {
             queryClient.invalidateQueries(['active-goals-sticky']);
             queryClient.invalidateQueries(['goals']);
             queryClient.invalidateQueries(['dashboard-kpis']);
+            setSelectedGoalForMoney(null);
           }}
         />
       )}
