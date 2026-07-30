@@ -17,6 +17,7 @@ import { formatCurrency, formatDate } from '../../lib/utils';
 import { useAuth } from '../../store/AuthContext';
 import { format } from 'date-fns';
 import { HistoryModal } from '../../components/history/HistoryModal';
+import GoalStickyNotes from '../../components/goals/GoalStickyNotes';
 
 const GREETING = () => {
   const h = new Date().getHours();
@@ -196,6 +197,9 @@ export function Dashboard() {
           </div>
         }
       />
+
+      {/* Upcoming Goals Sticky Notes */}
+      <GoalStickyNotes />
 
       {/* KPI Grid */}
       <div className="grid-4 mb-6">
