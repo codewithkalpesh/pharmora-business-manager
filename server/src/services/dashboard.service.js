@@ -441,72 +441,103 @@ const parseDateFilter = (query) => {
 
 const getExpenseHistory = async (userId, query) => {
   const page = parseInt(query.page, 10) || 1;
-  const limit = parseInt(query.limit, 10) || 30;
+  const limit = parseInt(query.limit, 10) || 50;
   const skip = (page - 1) * limit;
 
   const { start, end } = parseDateFilter(query);
 
-  const where = {
+  // ── 1. Fetch all operating expenses in range ──────────────────────────────
+  const expWhere = {
     createdById: userId,
     date: { gte: start, lte: end },
   };
-
   if (query.search) {
-    where.description = { contains: query.search, mode: 'insensitive' };
+    expWhere.OR = [
+      { description: { contains: query.search, mode: 'insensitive' } },
+      { category: { name: { contains: query.search, mode: 'insensitive' } } },
+    ];
   }
 
-  // Calculate cumulative running total chronologically across all user expenses up to date
-  const allUserExpenses = await prisma.expense.findMany({
-    where: { createdById: userId },
-    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
-    select: { id: true, amount: true },
-  });
-
-  const runningMap = new Map();
-  let cumulative = 0;
-  for (const exp of allUserExpenses) {
-    cumulative += Number(exp.amount);
-    runningMap.set(exp.id, cumulative);
+  // ── 2. Fetch all distributor payments in range ────────────────────────────
+  const distWhere = {
+    createdById: userId,
+    paymentDate: { gte: start, lte: end },
+  };
+  if (query.search) {
+    distWhere.distributor = { name: { contains: query.search, mode: 'insensitive' } };
   }
 
-  const [expenses, totalCount, aggregateSum] = await Promise.all([
+  const [operatingExpenses, distributorPayments] = await Promise.all([
     prisma.expense.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      where: expWhere,
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
       include: {
         category: true,
         createdBy: { select: { name: true } },
       },
     }),
-    prisma.expense.count({ where }),
-    prisma.expense.aggregate({
-      where,
-      _sum: { amount: true },
-    }),
+    prisma.distributorPayment.findMany({
+      where: distWhere,
+      orderBy: [{ paymentDate: 'asc' }, { createdAt: 'asc' }],
+      include: {
+        distributor: { select: { name: true } },
+        createdBy: { select: { name: true } },
+      },
+    }).catch(() => []), // gracefully handle if model doesn't exist
   ]);
 
-  const formattedData = expenses.map((exp) => ({
-    id: exp.id,
-    date: exp.date,
-    time: formatTime(exp.date),
-    category: exp.category?.name || 'Miscellaneous',
-    categoryColor: exp.category?.color || '#64748b',
-    description: exp.description,
-    amount: Number(exp.amount),
-    runningTotal: runningMap.get(exp.id) || Number(exp.amount),
-    addedBy: exp.createdBy?.name || 'Staff',
-  }));
+  // ── 3. Merge into one unified list ───────────────────────────────────────
+  const merged = [
+    ...operatingExpenses.map((e) => ({
+      _sortKey: new Date(e.date).getTime(),
+      id: e.id,
+      date: e.date,
+      source: 'EXPENSE',
+      category: e.category?.name || 'Miscellaneous',
+      description: e.description,
+      amount: Number(e.amount),
+      addedBy: e.createdBy?.name || 'Staff',
+    })),
+    ...distributorPayments.map((p) => ({
+      _sortKey: new Date(p.paymentDate).getTime(),
+      id: `dp_${p.id}`,
+      date: p.paymentDate,
+      source: 'DISTRIBUTOR',
+      category: 'Distributor Payment',
+      description: `Payment to ${p.distributor?.name || 'Distributor'}`,
+      amount: Number(p.amount),
+      addedBy: p.createdBy?.name || 'Staff',
+    })),
+  ].sort((a, b) => a._sortKey - b._sortKey);
 
-  const totalExpense = Number(aggregateSum._sum.amount || 0);
+  // ── 4. Calculate chronological running balance ────────────────────────────
+  let cumulative = 0;
+  const withRunning = merged.map((item) => {
+    cumulative += item.amount;
+    return { ...item, runningTotal: cumulative };
+  });
+
+  // ── 5. Apply pagination (reverse for newest-first display) ───────────────
+  const totalCount = withRunning.length;
+  const totalExpense = cumulative;
+  const paginated = withRunning.reverse().slice(skip, skip + limit);
 
   return {
     summary: {
       totalTransactions: totalCount,
       totalExpense,
     },
-    data: formattedData,
+    data: paginated.map((item) => ({
+      id: item.id,
+      date: item.date,
+      time: formatTime(item.date),
+      category: item.category,
+      description: item.description,
+      amount: item.amount,
+      runningTotal: item.runningTotal,
+      addedBy: item.addedBy,
+      source: item.source,
+    })),
     pagination: {
       total: totalCount,
       page,
@@ -515,6 +546,7 @@ const getExpenseHistory = async (userId, query) => {
     },
   };
 };
+
 
 const getCashHistory = async (userId, query) => {
   const page = parseInt(query.page, 10) || 1;

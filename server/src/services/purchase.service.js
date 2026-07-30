@@ -266,7 +266,7 @@ class PurchaseService {
     }
 
     const targetDistributorId = data.distributorId || existing.distributorId;
-    const targetInvoiceNo = data.invoiceNo || existing.invoiceNo;
+    const targetInvoiceNo = data.invoiceNo !== undefined ? (data.invoiceNo || null) : existing.invoiceNo;
     if (targetInvoiceNo) {
       const duplicateBill = await purchaseRepository.findBillByInvoice(targetInvoiceNo, targetDistributorId);
       if (duplicateBill && duplicateBill.id !== id) {
@@ -286,7 +286,7 @@ class PurchaseService {
     else if (paidAmount > 0) status = 'PARTIAL';
 
     const payload = {
-      invoiceNo: data.invoiceNo || existing.invoiceNo,
+      invoiceNo: data.invoiceNo !== undefined ? (data.invoiceNo || null) : existing.invoiceNo,
       distributorId: data.distributorId || existing.distributorId,
       billDate: data.billDate ? new Date(data.billDate) : existing.billDate,
       dueDate: data.dueDate ? new Date(data.dueDate) : existing.dueDate,

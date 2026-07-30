@@ -191,7 +191,7 @@ class BankService {
       type: data.type,
       date: new Date(data.date),
       amount,
-      description: data.description,
+      description: data.description || null,
       referenceNo: data.referenceNo || null,
       transferToId: data.type === 'TRANSFER' ? data.transferToId : null,
       runningBalance: newBalance,

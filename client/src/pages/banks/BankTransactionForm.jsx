@@ -14,7 +14,7 @@ const schema = z.object({
   amount: z.string().refine((v) => !isNaN(parseFloat(v)) && parseFloat(v) > 0, {
     message: 'Amount must be positive',
   }),
-  description: z.string().min(1, 'Description is required').max(200),
+  description: z.string().max(200).optional().nullable().or(z.literal('')),
   referenceNo: z.string().max(100).optional().nullable().or(z.literal('')),
   transferToId: z.string().optional().nullable().or(z.literal('')),
 });
@@ -183,7 +183,7 @@ export function BankTransactionForm({ isOpen, onClose, onSuccess }) {
         </div>
 
         <div className="input-group">
-          <label className="input-label">Description *</label>
+          <label className="input-label">Description</label>
           <input
             type="text"
             {...register('description')}

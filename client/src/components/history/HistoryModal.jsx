@@ -16,8 +16,8 @@ export function HistoryModal({ isOpen, onClose, type = 'expenses' }) {
   const [search, setSearch] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
-  const [startDate, setStartDate] = useState(type === 'expenses' ? format(new Date(), 'yyyy-MM-dd') : '');
-  const [endDate, setEndDate] = useState(type === 'expenses' ? format(new Date(), 'yyyy-MM-dd') : '');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [page, setPage] = useState(1);
 
   // Determine query based on type
@@ -419,8 +419,8 @@ export function HistoryModal({ isOpen, onClose, type = 'expenses' }) {
                         <ArrowUpRight size={18} />
                       </div>
                       <div>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                          EXPENSE RECORD • {exp.category || 'Miscellaneous'}
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: exp.source === 'DISTRIBUTOR' ? '#8b5cf6' : '#ef4444', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                          {exp.source === 'DISTRIBUTOR' ? '🏭 DISTRIBUTOR PAYMENT' : `EXPENSE RECORD • ${exp.category || 'Miscellaneous'}`}
                         </div>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
                           {exp.description}

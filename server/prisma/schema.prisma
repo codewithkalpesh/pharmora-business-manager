@@ -336,7 +336,7 @@ model BankTransaction {
   type            BankTransactionType
   date            DateTime            @db.Date
   amount          Decimal             @db.Decimal(12, 2)
-  description     String
+  description     String?
   referenceNo     String?
   transferToId    String?
   transferFromId  String?
