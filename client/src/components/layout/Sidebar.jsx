@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, Receipt, ShoppingCart, Truck,
   CreditCard, Users, Building2, RefreshCw, BarChart3, TrendingUp,
-  Bell, Settings, Pill, ChevronLeft, ChevronRight, LogOut, X, HandCoins,
+  Bell, Settings, Pill, ChevronLeft, ChevronRight, LogOut, X, HandCoins, Target,
 } from 'lucide-react';
 import { useAuth } from '../../store/AuthContext';
 import { getInitials } from '../../lib/utils';
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { label: 'Distributors',   icon: Truck,           to: '/distributors' },
   { label: 'Payments',       icon: CreditCard,      to: '/payments' },
   { label: 'Borrowed Money', icon: HandCoins,       to: '/borrowed' },
+  { label: 'Goals',          icon: Target,          to: '/goals' },
   { label: 'Banks',          icon: Building2,       to: '/banks' },
   { label: 'Recurring',      icon: RefreshCw,       to: '/recurring' },
   { label: 'Reports',        icon: BarChart3,       to: '/reports' },

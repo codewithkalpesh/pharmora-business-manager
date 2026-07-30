@@ -18,6 +18,7 @@ import { Reports } from '../pages/reports/Reports';
 import { Analytics } from '../pages/analytics/Analytics';
 import { Notifications } from '../pages/notifications/Notifications';
 import { Settings } from '../pages/settings/Settings';
+import Goals from '../pages/goals/Goals';
 import { ExpenseHistory } from '../pages/history/ExpenseHistory';
 import { CashHistory } from '../pages/history/CashHistory';
 import { BankHistory } from '../pages/history/BankHistory';
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
       { path: 'distributors', element: <Distributors /> },
       { path: 'payments', element: <Payments /> },
       { path: 'borrowed', element: <BorrowedMoney /> },
+      { path: 'goals', element: <Goals /> },
       { path: 'banks', element: <Banks /> },
       { path: 'recurring', element: <Recurring /> },
       { path: 'reports', element: <Reports /> },

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import DailyGoalAlertModal from '../goals/DailyGoalAlertModal';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
@@ -14,6 +15,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
+      <DailyGoalAlertModal />
       {/* Mobile backdrop overlay */}
       <div
         className={`mobile-overlay ${mobileOpen ? 'open' : ''}`}

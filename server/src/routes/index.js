@@ -15,6 +15,7 @@ const notificationRoutes = require('./notification.routes');
 const analyticsRoutes = require('./analytics.routes');
 const borrowedRoutes = require('./borrowed.routes');
 const reportRoutes = require('./reportRoutes');
+const goalRoutes = require('./goal.routes');
 
 router.use('/auth', authRoutes);
 router.use('/dashboard', dashboardRoutes);
@@ -29,5 +30,6 @@ router.use('/notifications', notificationRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/borrowed', borrowedRoutes);
 router.use('/reports', reportRoutes);
+router.use('/goals', goalRoutes);
 
 module.exports = router;
