@@ -386,7 +386,7 @@ export function GoalStickyNotes() {
 
   const { data: resData, isLoading } = useQuery({
     queryKey: ['active-goals-sticky'],
-    queryFn: () => goalApi.getGoals({ status: 'IN_PROGRESS', limit: 10 }).then((r) => r.data),
+    queryFn: () => goalApi.getGoals({ status: 'IN_PROGRESS', limit: 1 }).then((r) => r.data),
     staleTime: 30 * 1000,
   });
 
@@ -426,7 +426,7 @@ export function GoalStickyNotes() {
               Upcoming Payment Goals
             </div>
             <div style={{ fontSize: '0.6875rem', color: '#64748b', fontWeight: 500 }}>
-              {activeGoals.length} active goal{activeGoals.length > 1 ? 's' : ''} — stay on track
+              Next upcoming goal — stay on track
             </div>
           </div>
         </div>
@@ -471,7 +471,7 @@ export function GoalStickyNotes() {
           gap: 16,
         }}
       >
-        {activeGoals.map((goal, index) => (
+        {activeGoals.slice(0, 1).map((goal, index) => (
           <GoalCard
             key={goal.id}
             goal={goal}
