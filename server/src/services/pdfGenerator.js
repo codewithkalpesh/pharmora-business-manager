@@ -7,26 +7,61 @@ const { buildTableLayout } = require('./tableBuilder');
 const { formatCurrency } = require('../utils/financialCalculator');
 const { formatDate } = require('./utils');
 
-const fontsDir = path.join(process.env.SystemRoot || 'C:\\Windows', 'Fonts');
-const fontFiles = {
-  normal: path.join(fontsDir, 'arial.ttf'),
-  bold: path.join(fontsDir, 'arialbd.ttf'),
-  italics: path.join(fontsDir, 'ariali.ttf'),
-  bolditalics: path.join(fontsDir, 'arialbi.ttf'),
-};
+// Try a list of common font families / locations so the server can run
+// across Windows and Linux hosts (Render, Docker, etc.). We pick the
+// first complete font set found.
+const fontCandidates = [
+  // Windows Arial
+  {
+    name: 'Arial',
+    normal: path.join(process.env.SystemRoot || 'C:\\Windows', 'Fonts', 'arial.ttf'),
+    bold: path.join(process.env.SystemRoot || 'C:\\Windows', 'Fonts', 'arialbd.ttf'),
+    italics: path.join(process.env.SystemRoot || 'C:\\Windows', 'Fonts', 'ariali.ttf'),
+    bolditalics: path.join(process.env.SystemRoot || 'C:\\Windows', 'Fonts', 'arialbi.ttf'),
+  },
+  // DejaVu (common on many Linux images)
+  {
+    name: 'DejaVuSans',
+    normal: '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    bold: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    italics: '/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf',
+    bolditalics: '/usr/share/fonts/truetype/dejavu/DejaVuSans-BoldOblique.ttf',
+  },
+  // Liberation (alternative Linux fonts)
+  {
+    name: 'LiberationSans',
+    normal: '/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf',
+    bold: '/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf',
+    italics: '/usr/share/fonts/truetype/liberation/LiberationSans-Italic.ttf',
+    bolditalics: '/usr/share/fonts/truetype/liberation/LiberationSans-BoldItalic.ttf',
+  },
+];
 
-Object.entries(fontFiles).forEach(([style, file]) => {
-  if (!fs.existsSync(file)) {
-    throw new Error(`Missing system font for pdf generation: ${file}`);
+let chosenFont = null;
+for (const candidate of fontCandidates) {
+  const allExist = ['normal', 'bold', 'italics', 'bolditalics'].every((k) => fs.existsSync(candidate[k]));
+  if (allExist) {
+    chosenFont = candidate;
+    break;
   }
-});
+}
+
+if (!chosenFont) {
+  // Nothing found — provide a clearer error listing tried locations.
+  const tried = fontCandidates
+    .map((c) => `- ${c.name}: ${c.normal}`)
+    .join('\n');
+  throw new Error(
+    `No usable system fonts found for PDF generation. Tried:\n${tried}\nPlease install DejaVu/Liberation fonts on the host or include a TTF bundle in the project.`,
+  );
+}
 
 const fonts = {
-  Arial: {
-    normal: fontFiles.normal,
-    bold: fontFiles.bold,
-    italics: fontFiles.italics,
-    bolditalics: fontFiles.bolditalics,
+  [chosenFont.name]: {
+    normal: chosenFont.normal,
+    bold: chosenFont.bold,
+    italics: chosenFont.italics,
+    bolditalics: chosenFont.bolditalics,
   },
 };
 
