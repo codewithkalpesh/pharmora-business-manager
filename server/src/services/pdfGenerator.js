@@ -266,7 +266,7 @@ const createDocDefinition = ({ monthLabel, generatedAt, summary, daySummary, tra
       noteText: { fontSize: 9, color: theme.muted, italics: true, margin: [0, 8, 0, 16] },
     },
     defaultStyle: {
-      font: 'Arial',
+      font: chosenFont.name,
       lineHeight: 1.2,
     },
   };
