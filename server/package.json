@@ -37,7 +37,8 @@
     "chart.js": "^4.5.1",
     "chartjs-node-canvas": "^5.0.0",
     "node-telegram-bot-api": "^0.61.0",
-    "canvas": "^3.1.2"
+    "canvas": "^3.1.2",
+    "pdfmake": "^0.2.7"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

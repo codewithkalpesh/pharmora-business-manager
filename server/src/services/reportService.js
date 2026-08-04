@@ -298,6 +298,7 @@ const calculateAnalysis = (daySummary, summary) => {
   const highestExpenseDay = daySummary.reduce((best, row) => (row.expense > best.expense ? row : best), daySummary[0] || { expense: 0 });
   const averageDailySales = daySummary.length ? daySummary.reduce((sum, row) => sum + row.totalSales, 0) / daySummary.length : 0;
   const averageDailyExpense = daySummary.length ? daySummary.reduce((sum, row) => sum + row.expense, 0) / daySummary.length : 0;
+  const summaryTotals = calcSummary(summary);
 
   return {
     highestSalesDay: highestSalesDay.date || '-',
@@ -307,10 +308,11 @@ const calculateAnalysis = (daySummary, summary) => {
     averageDailyExpense,
     totalCashReceived: summary.cashReceived,
     totalCashPaid: summary.cashPaid,
-    purchasePercentage: calcSummary(summary).formatted.purchasePercentage,
-    expensePercentage: calcSummary(summary).formatted.expensePercentage,
-    netProfit: calcSummary(summary).netProfit,
-    profitMargin: calcSummary(summary).formatted.profitMargin,
+    purchasePercentage: summaryTotals.formatted.purchasePercentage,
+    expensePercentage: summaryTotals.formatted.expensePercentage,
+    netProfit: summaryTotals.netProfit,
+    profitMargin: summaryTotals.formatted.profitMargin,
+    netCashFlow: summaryTotals.netCashFlow,
   };
 };
 

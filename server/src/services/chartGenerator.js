@@ -1,6 +1,5 @@
 const { ChartJSNodeCanvas } = require('chartjs-node-canvas');
-const path = require('path');
-const fs = require('fs');
+const { toDataUrl } = require('./utils');
 
 const createChartImage = async (config, width = 1200, height = 600) => {
   const chartCanvas = new ChartJSNodeCanvas({ width, height, backgroundColour: 'white' });
@@ -16,7 +15,7 @@ const buildLineChart = async (labels, values, label = 'Daily Sales') => {
         label,
         data: values,
         borderColor: '#2563eb',
-        backgroundColor: 'rgba(37,99,235,0.12)',
+        backgroundColor: 'rgba(37,99,235,0.18)',
         fill: true,
         tension: 0.3,
         pointRadius: 4,
@@ -35,7 +34,7 @@ const buildLineChart = async (labels, values, label = 'Daily Sales') => {
       },
     },
   };
-  return createChartImage(config, 900, 450);
+  return toDataUrl(await createChartImage(config, 900, 450));
 };
 
 const buildBarChart = async (labels, values, label = 'Daily Expenses') => {
@@ -63,7 +62,7 @@ const buildBarChart = async (labels, values, label = 'Daily Expenses') => {
       },
     },
   };
-  return createChartImage(config, 900, 450);
+  return toDataUrl(await createChartImage(config, 900, 450));
 };
 
 const buildPieChart = async (labels, values, title = 'Payment Methods') => {
@@ -73,7 +72,7 @@ const buildPieChart = async (labels, values, title = 'Payment Methods') => {
       labels,
       datasets: [{
         data: values,
-        backgroundColor: ['#16a34a', '#2563eb', '#f97316', '#8b5cf6'],
+        backgroundColor: ['#10B981', '#2563EB', '#F59E0B', '#8B5CF6'],
         borderColor: '#ffffff',
         borderWidth: 2,
       }],
@@ -86,7 +85,7 @@ const buildPieChart = async (labels, values, title = 'Payment Methods') => {
       },
     },
   };
-  return createChartImage(config, 900, 450);
+  return toDataUrl(await createChartImage(config, 900, 450));
 };
 
 module.exports = {
