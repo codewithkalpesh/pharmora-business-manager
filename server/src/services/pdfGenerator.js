@@ -83,47 +83,63 @@ const addSummaryCards = (doc, summary) => {
 };
 
 const drawTable = (doc, columns, rows, startY) => {
-  const columnWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right) / columns.length;
+  const availableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const columnWidth = availableWidth / columns.length;
   let y = startY;
 
-  doc.fontSize(9).font('Helvetica-Bold').fill(COLORS.text);
-  columns.forEach((col, index) => {
-    doc.text(col.label, doc.page.margins.left + index * columnWidth, y, { width: columnWidth, align: 'left' });
-  });
-  y += 18;
-  doc.strokeColor(COLORS.border).lineWidth(0.5).moveTo(doc.page.margins.left, y - 4).lineTo(doc.page.width - doc.page.margins.right, y - 4).stroke();
+  const renderHeader = () => {
+    doc.fontSize(9).font('Helvetica-Bold').fill(COLORS.text);
+    columns.forEach((col, index) => {
+      doc.text(col.label, doc.page.margins.left + index * columnWidth, y, {
+        width: columnWidth,
+        align: 'left',
+      });
+    });
+    y += 18;
+    doc.strokeColor(COLORS.border).lineWidth(0.5)
+      .moveTo(doc.page.margins.left, y - 4)
+      .lineTo(doc.page.width - doc.page.margins.right, y - 4)
+      .stroke();
+  };
+
+  renderHeader();
 
   rows.forEach((row, rowIndex) => {
-    if (y > doc.page.height - doc.page.margins.bottom - 40) {
-      doc.addPage();
+    doc.fontSize(8).font('Helvetica');
+
+    const rowHeights = columns.map((col) => {
+      const text = row[col.key] ? row[col.key].toString() : '-';
+      return doc.heightOfString(text, { width: columnWidth, align: 'left' });
+    });
+    const rowHeight = Math.max(18, ...rowHeights) + 4;
+
+    if (y + rowHeight > doc.page.height - doc.page.margins.bottom - 20) {
+      doc.addPage({ layout: doc.page.layout });
       addHeader(doc, '', '', '');
       y = doc.y + 10;
-      doc.fontSize(9).font('Helvetica-Bold').fill(COLORS.text);
-      columns.forEach((col, index) => {
-        doc.text(col.label, doc.page.margins.left + index * columnWidth, y, { width: columnWidth, align: 'left' });
-      });
-      y += 18;
-      doc.strokeColor(COLORS.border).lineWidth(0.5).moveTo(doc.page.margins.left, y - 4).lineTo(doc.page.width - doc.page.margins.right, y - 4).stroke();
+      renderHeader();
     }
 
     if (row.backgroundColor) {
       doc.save();
-      doc.rect(doc.page.margins.left, y - 2, doc.page.width - doc.page.margins.left - doc.page.margins.right, 18)
-        .fill(row.backgroundColor);
+      doc.rect(doc.page.margins.left, y - 2, availableWidth, rowHeight).fill(row.backgroundColor);
       doc.restore();
     } else if (rowIndex % 2 === 0) {
       doc.save();
-      doc.rect(doc.page.margins.left, y - 2, doc.page.width - doc.page.margins.left - doc.page.margins.right, 18)
-        .fill('#f8fafc');
+      doc.rect(doc.page.margins.left, y - 2, availableWidth, rowHeight).fill('#f8fafc');
       doc.restore();
     }
 
-    doc.fontSize(8).font('Helvetica').fill(COLORS.text);
     columns.forEach((col, colIndex) => {
       const value = row[col.key] ?? '-';
-      doc.text(value.toString(), doc.page.margins.left + colIndex * columnWidth, y, { width: columnWidth, align: 'left' });
+      doc.fill(COLORS.text).text(value.toString(), doc.page.margins.left + colIndex * columnWidth, y, {
+        width: columnWidth,
+        align: 'left',
+        lineBreak: true,
+      });
     });
-    y += 18;
+
+    y += rowHeight;
   });
 
   return y;
@@ -158,36 +174,24 @@ const generateReportPdf = async ({
 
     const dayColumns = [
       { label: 'Date', key: 'date' },
-      { label: 'Cash Sales', key: 'cashSales' },
-      { label: 'UPI Sales', key: 'upiSales' },
-      { label: 'Bank Sales', key: 'bankSales' },
-      { label: 'Credit Sales', key: 'creditSales' },
-      { label: 'Total Sales', key: 'totalSales' },
+      { label: 'Total', key: 'totalSales' },
       { label: 'Income', key: 'income' },
       { label: 'Expense', key: 'expense' },
       { label: 'Purchases', key: 'purchases' },
-      { label: 'Distributor Payment', key: 'distributorPayments' },
       { label: 'Cash In', key: 'cashIn' },
       { label: 'Cash Out', key: 'cashOut' },
-      { label: 'Opening Cash', key: 'openingCash' },
       { label: 'Closing Cash', key: 'closingCash' },
-      { label: 'Running Bank', key: 'runningBank' },
+      { label: 'Bank Balance', key: 'runningBank' },
     ];
 
     const formattedDayRows = daySummary.map((row) => ({
       date: row.date,
-      cashSales: formatCurrency(row.cashSales),
-      upiSales: formatCurrency(row.upiSales),
-      bankSales: formatCurrency(row.bankSales),
-      creditSales: formatCurrency(row.creditSales),
       totalSales: formatCurrency(row.totalSales),
       income: formatCurrency(row.income),
       expense: formatCurrency(row.expense),
       purchases: formatCurrency(row.purchases),
-      distributorPayments: formatCurrency(row.distributorPayments),
       cashIn: formatCurrency(row.cashIn),
       cashOut: formatCurrency(row.cashOut),
-      openingCash: formatCurrency(row.openingCash),
       closingCash: formatCurrency(row.closingCash),
       runningBank: formatCurrency(row.runningBank),
       backgroundColor: row.isWeekend ? '#f3f4f6' : null,
@@ -196,36 +200,29 @@ const generateReportPdf = async ({
     drawTable(doc, dayColumns, formattedDayRows, doc.y + 10);
     doc.addPage();
 
+    doc.addPage({ layout: 'landscape' });
     addHeader(doc, reportNumber, monthLabel, generatedAt);
     doc.fontSize(12).fill('#111827').font('Helvetica-Bold').text('Complete Transaction History', { underline: true });
     doc.moveDown(0.4);
 
     const transactionColumns = [
       { label: 'Date', key: 'date' },
-      { label: 'Time', key: 'time' },
       { label: 'Type', key: 'type' },
       { label: 'Category', key: 'category' },
-      { label: 'Description', key: 'description' },
-      { label: 'Payment Mode', key: 'paymentMode' },
-      { label: 'Reference', key: 'referenceNo' },
-      { label: 'Money In', key: 'moneyIn' },
-      { label: 'Money Out', key: 'moneyOut' },
-      { label: 'Cash Balance', key: 'runningCash' },
-      { label: 'Bank Balance', key: 'runningBank' },
+      { label: 'Details', key: 'description' },
+      { label: 'In', key: 'moneyIn' },
+      { label: 'Out', key: 'moneyOut' },
+      { label: 'Bank Bal', key: 'runningBank' },
       { label: 'Created By', key: 'createdBy' },
     ];
 
     const formattedTransactions = transactions.map((txn) => ({
       date: txn.date,
-      time: txn.time,
       type: txn.type,
       category: txn.category,
       description: txn.description,
-      paymentMode: txn.paymentMode,
-      referenceNo: txn.referenceNo || '-',
       moneyIn: txn.moneyIn ? formatCurrency(txn.moneyIn) : '-',
       moneyOut: txn.moneyOut ? formatCurrency(txn.moneyOut) : '-',
-      runningCash: formatCurrency(txn.runningCash),
       runningBank: formatCurrency(txn.runningBank),
       createdBy: txn.createdBy,
       backgroundColor: txn.isWeekend ? '#f3f4f6' : null,
