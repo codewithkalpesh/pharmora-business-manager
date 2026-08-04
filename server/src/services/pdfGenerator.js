@@ -129,13 +129,13 @@ const buildDaySummaryRows = (daySummary) => daySummary.map((day) => [
 ]);
 
 const buildTransactionRows = (transactions) => transactions.map((txn) => [
-  { text: formatDate(txn.date), style: 'tableCell' },
+  { text: txn.time || '', style: 'tableCell' },
   { text: txn.type, style: 'tableCell' },
   { text: txn.category, style: 'tableCell' },
   { text: txn.description, style: 'tableCell' },
   { text: txn.moneyIn ? formatCurrency(txn.moneyIn) : '-', style: 'tableCell', alignment: 'right' },
   { text: txn.moneyOut ? formatCurrency(txn.moneyOut) : '-', style: 'tableCell', alignment: 'right' },
-  { text: formatCurrency(txn.runningBank), style: 'tableCell', alignment: 'right' },
+  { text: txn.runningBank ? formatCurrency(txn.runningBank) : '-', style: 'tableCell', alignment: 'right' },
 ]);
 
 const buildAnalyticsBullets = (analysis) => ({
@@ -150,11 +150,11 @@ const buildAnalyticsBullets = (analysis) => ({
   margin: [0, 0, 0, 16],
 });
 
-const createDocDefinition = ({ monthLabel, generatedAt, summary, daySummary, transactions, analysis, charts, reportNumber }) => {
+const createDocDefinition = ({ monthLabel, generatedAt, summary, daySummary, transactions, groupedTransactions, analysis, charts, reportNumber }) => {
   const kpiCards = buildKpiCards(summary);
   const analysisCards = buildAnalysisCards(analysis);
   const dayRows = buildDaySummaryRows(daySummary);
-  const transactionRows = buildTransactionRows(transactions.slice(0, 120));
+  const totalTxCount = (groupedTransactions || []).reduce((s, g) => s + (g.transactions?.length || 0), 0);
 
   return {
     pageSize: 'A4',
@@ -225,21 +225,62 @@ const createDocDefinition = ({ monthLabel, generatedAt, summary, daySummary, tra
         ['auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
       ),
       { text: '', pageBreak: 'after' },
-      ...buildSectionHeader('Transaction Ledger', 'A condensed transaction view for quick review.'),
-      buildTable(
-        [
-          { text: 'Date', style: 'tableHeader' },
-          { text: 'Type', style: 'tableHeader' },
-          { text: 'Category', style: 'tableHeader' },
-          { text: 'Details', style: 'tableHeader' },
-          { text: 'In', style: 'tableHeader', alignment: 'right' },
-          { text: 'Out', style: 'tableHeader', alignment: 'right' },
-          { text: 'Bank Bal', style: 'tableHeader', alignment: 'right' },
-        ],
-        transactionRows,
-        [50, 60, 90, '*', 50, 50, 60],
+      ...buildSectionHeader('Transaction Ledger', 'Date-wise transaction timeline.'),
+      // Render grouped transactions by date
+      ...(
+        (transactions || []).map((group) => {
+          const dayRows = buildTransactionRows(group.transactions);
+          const dayTotals = group.transactions.reduce((t, tx) => {
+            t.sales += tx.type === 'Sale' ? (tx.moneyIn || 0) : 0;
+            t.expense += tx.type === 'Expense' ? (tx.moneyOut || 0) : 0;
+            t.purchases += tx.type === 'Purchase' ? (tx.moneyOut || 0) : 0;
+            t.cashIn += tx.moneyIn || 0;
+            t.cashOut += tx.moneyOut || 0;
+            return t;
+          }, { sales: 0, expense: 0, purchases: 0, cashIn: 0, cashOut: 0 });
+
+          return [
+            { text: `📅 ${formatDate(group.date)}`, style: 'dayHeader' },
+            { canvas: [{ type: 'line', x1: 0, y1: 4, x2: 520, y2: 4, lineWidth: 0.5, lineColor: theme.border }] },
+            {
+              table: {
+                widths: [50, 60, 90, '*', 50, 50, 60],
+                body: [
+                  [
+                    { text: 'Time', style: 'tableHeader' },
+                    { text: 'Type', style: 'tableHeader' },
+                    { text: 'Category', style: 'tableHeader' },
+                    { text: 'Details', style: 'tableHeader' },
+                    { text: 'In', style: 'tableHeader', alignment: 'right' },
+                    { text: 'Out', style: 'tableHeader', alignment: 'right' },
+                    { text: 'Bank Bal', style: 'tableHeader', alignment: 'right' },
+                  ],
+                  ...dayRows,
+                ],
+              },
+              layout: buildTableLayout(),
+              margin: [0, 8, 0, 8],
+            },
+            {
+              columns: [
+                { width: '*', text: '' },
+                {
+                  width: 'auto',
+                  stack: [
+                    { text: 'Daily Total', style: 'dayTotalTitle' },
+                    { text: `Sales ${formatCurrency(dayTotals.sales)}`, style: 'dayTotal' },
+                    { text: `Expense ${formatCurrency(dayTotals.expense)}`, style: 'dayTotal' },
+                    { text: `Purchases ${formatCurrency(dayTotals.purchases)}`, style: 'dayTotal' },
+                    { text: `Cash In ${formatCurrency(dayTotals.cashIn)}`, style: 'dayTotal' },
+                    { text: `Cash Out ${formatCurrency(dayTotals.cashOut)}`, style: 'dayTotal' },
+                  ],
+                },
+              ],
+              margin: [0, 0, 0, 12],
+            },
+          ];
+        }).flat()
       ),
-      { text: transactions.length > 120 ? 'Note: the first 120 transactions are shown here. The full ledger is available in raw export.' : '', style: 'noteText' },
       { text: '', pageBreak: 'after' },
       ...buildSectionHeader('Financial Charts', 'Visual trends for sales, expenses, and payment mix.'),
       charts.dailySales ? { image: charts.dailySales, width: 520, alignment: 'center', margin: [0, 0, 0, 16] } : null,
@@ -257,6 +298,9 @@ const createDocDefinition = ({ monthLabel, generatedAt, summary, daySummary, tra
       coverPanelValue: { fontSize: 14, bold: true, color: theme.text, margin: [0, 4, 0, 4] },
       sectionTitle: { fontSize: 18, bold: true, color: theme.primary, margin: [0, 0, 0, 4] },
       sectionSubtitle: { fontSize: 10, color: theme.muted, margin: [0, 0, 0, 16] },
+      dayHeader: { fontSize: 14, bold: true, color: theme.primary, margin: [0, 8, 0, 6] },
+      dayTotalTitle: { fontSize: 11, bold: true, color: theme.muted, margin: [0, 2, 0, 2] },
+      dayTotal: { fontSize: 10, bold: true, color: theme.text, margin: [0, 2, 0, 2] },
       cardTitle: { fontSize: 10, bold: true, color: theme.muted, margin: [0, 2, 0, 2] },
       cardValue: { fontSize: 18, bold: true, color: theme.text, margin: [0, 2, 0, 0] },
       tableHeader: { fontSize: 9, bold: true, color: theme.text, margin: [0, 4, 0, 4] },
@@ -272,9 +316,9 @@ const createDocDefinition = ({ monthLabel, generatedAt, summary, daySummary, tra
   };
 };
 
-const generateReportPdf = async ({ monthLabel, generatedAt, summary, daySummary, transactions, analysis, charts, reportNumber, outputPath }) => {
+const generateReportPdf = async ({ monthLabel, generatedAt, summary, daySummary, transactions, groupedTransactions, analysis, charts, reportNumber, outputPath }) => {
   return new Promise((resolve, reject) => {
-    const docDefinition = createDocDefinition({ monthLabel, generatedAt, summary, daySummary, transactions, analysis, charts, reportNumber });
+    const docDefinition = createDocDefinition({ monthLabel, generatedAt, summary, daySummary, transactions, groupedTransactions, analysis, charts, reportNumber });
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
     const stream = fs.createWriteStream(outputPath);
     pdfDoc.pipe(stream);

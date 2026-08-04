@@ -341,6 +341,25 @@ const generateReport = async ({ month, year, userId, sendTelegram = true }) => {
     paymentMethods: await buildPieChart(['Cash', 'UPI', 'Bank', 'Credit'], paymentMethodValues, 'Payment Methods'),
   };
 
+  // Group transactions by date (ascending) and by time within each date
+  const sortedTx = transactions.sort((a, b) => {
+    if (a.date < b.date) return -1;
+    if (a.date > b.date) return 1;
+    if ((a.time || '') < (b.time || '')) return -1;
+    if ((a.time || '') > (b.time || '')) return 1;
+    return 0;
+  });
+
+  const groupedTransactions = [];
+  let currentDate = null;
+  for (const tx of sortedTx) {
+    if (tx.date !== currentDate) {
+      currentDate = tx.date;
+      groupedTransactions.push({ date: currentDate, transactions: [] });
+    }
+    groupedTransactions[groupedTransactions.length - 1].transactions.push(tx);
+  }
+
   const fileName = `${start.toLocaleString('en-IN', { month: 'long' })}-${year}-Report.pdf`;
   const outputPath = path.join(REPORT_DIRECTORY, fileName);
 
@@ -350,7 +369,7 @@ const generateReport = async ({ month, year, userId, sendTelegram = true }) => {
     generatedAt,
     summary: { ...summary, ...calcSummary(summary) },
     daySummary,
-    transactions,
+    groupedTransactions,
     analysis: summaryAnalysis,
     charts,
     reportNumber,
