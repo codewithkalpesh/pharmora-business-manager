@@ -4,18 +4,35 @@ const path = require('path');
 const { formatCurrency } = require('../utils/financialCalculator');
 
 const HEADER_HEIGHT = 100;
+const COLORS = {
+  background: '#f8fafc',
+  surface: '#ffffff',
+  text: '#111827',
+  muted: '#475569',
+  primary: '#2563eb',
+  success: '#10b981',
+  warning: '#f97316',
+  border: '#e2e8f0',
+  accent: '#8b5cf6',
+};
+
+const addSectionTitle = (doc, title) => {
+  const y = doc.y;
+  doc.fill(COLORS.primary).fontSize(12).font('Helvetica-Bold').text(title, { align: 'left' });
+  doc.moveDown(0.2);
+  doc.strokeColor(COLORS.border).lineWidth(1).moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
+  doc.moveDown(0.6);
+};
 
 const addHeader = (doc, title, monthLabel, generatedAt) => {
-  doc.fill('#111827').fontSize(20).font('Helvetica-Bold').text('PHARMORA BUSINESS MANAGER', { align: 'center' });
-  doc.moveDown(0.3);
-  doc.fontSize(16).font('Helvetica').fill('#4b5563').text('Monthly Financial Report', { align: 'center' });
-  doc.moveDown(0.4);
-  doc.fontSize(10).fill('#6b7280');
-  doc.text(`Report Month: ${monthLabel}`, { align: 'center' });
-  doc.text(`Generated: ${generatedAt}`, { align: 'center' });
-  doc.moveDown(0.6);
-  doc.strokeColor('#e5e7eb').lineWidth(1).moveTo(doc.page.margins.left, doc.y).lineTo(doc.page.width - doc.page.margins.right, doc.y).stroke();
-  doc.moveDown(0.8);
+  doc.rect(0, 0, doc.page.width, 120).fill(COLORS.primary);
+  doc.fill('#ffffff').fontSize(18).font('Helvetica-Bold').text('PHARMORA BUSINESS MANAGER', 50, 28, { align: 'left' });
+  doc.fontSize(12).font('Helvetica').text('Monthly Financial Report', 50, 52, { align: 'left' });
+  doc.fontSize(9).fill('#dbeafe').text(`Report Month: ${monthLabel}`, 50, 72, { align: 'left' });
+  doc.text(`Generated: ${generatedAt}`, 50, 86, { align: 'left' });
+  doc.fontSize(9).fill('#dbeafe').text(title, doc.page.width - doc.page.margins.right - 180, 28, { align: 'right', width: 180 });
+  doc.moveDown(6);
+  doc.fill(COLORS.text);
 };
 
 const addFooter = (doc, pageNo, totalPages) => {
@@ -27,86 +44,84 @@ const addFooter = (doc, pageNo, totalPages) => {
 
 const addSummaryCards = (doc, summary) => {
   const cards = [
-    { title: 'Total Sales', value: formatCurrency(summary.totalSales) },
-    { title: 'Cash Sales', value: formatCurrency(summary.cashSales) },
-    { title: 'UPI Sales', value: formatCurrency(summary.upiSales) },
-    { title: 'Bank Sales', value: formatCurrency(summary.bankSales) },
-    { title: 'Credit Sales', value: formatCurrency(summary.creditSales) },
-    { title: 'Total Income', value: formatCurrency(summary.totalIncome) },
-    { title: 'Total Expenses', value: formatCurrency(summary.totalExpenses) },
-    { title: 'Total Purchases', value: formatCurrency(summary.totalPurchases) },
-    { title: 'Distributor Payments', value: formatCurrency(summary.distributorPayments) },
-    { title: 'Cash Received', value: formatCurrency(summary.cashReceived) },
-    { title: 'Cash Paid', value: formatCurrency(summary.cashPaid) },
-    { title: 'Opening Cash', value: formatCurrency(summary.openingCash) },
-    { title: 'Closing Cash', value: formatCurrency(summary.closingCash) },
-    { title: 'Opening Bank Balance', value: formatCurrency(summary.openingBank) },
-    { title: 'Closing Bank Balance', value: formatCurrency(summary.closingBank) },
-    { title: 'Net Profit', value: formatCurrency(summary.netProfit) },
-    { title: 'Net Cash Flow', value: formatCurrency(summary.netCashFlow) },
-    { title: 'Total Transactions', value: summary.totalTransactions.toString() },
+    { title: 'Total Sales', value: formatCurrency(summary.totalSales), color: COLORS.primary },
+    { title: 'Total Income', value: formatCurrency(summary.totalIncome), color: COLORS.success },
+    { title: 'Total Expenses', value: formatCurrency(summary.totalExpenses), color: COLORS.warning },
+    { title: 'Net Profit', value: formatCurrency(summary.netProfit), color: COLORS.accent },
+    { title: 'Cash Received', value: formatCurrency(summary.cashReceived), color: COLORS.success },
+    { title: 'Cash Paid', value: formatCurrency(summary.cashPaid), color: COLORS.warning },
+    { title: 'Closing Cash', value: formatCurrency(summary.closingCash), color: COLORS.primary },
+    { title: 'Closing Bank', value: formatCurrency(summary.closingBank), color: COLORS.accent },
   ];
 
   const x = doc.page.margins.left;
-  const cardWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 24) / 3;
+  const cardWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 24) / 4;
   let y = doc.y;
 
   cards.forEach((card, index) => {
-    const rowIndex = Math.floor(index / 3);
-    const colIndex = index % 3;
+    const rowIndex = Math.floor(index / 4);
+    const colIndex = index % 4;
     const cardX = x + colIndex * (cardWidth + 12);
-    const cardY = y + rowIndex * 80;
+    const cardY = y + rowIndex * 90;
 
-    if (cardY + 70 > doc.page.height - doc.page.margins.bottom - 50) {
+    if (cardY + 80 > doc.page.height - doc.page.margins.bottom - 50) {
       doc.addPage();
       addHeader(doc, '', '', '');
+      addSectionTitle(doc, 'Key Monthly Metrics');
       y = doc.y;
     }
 
     doc.save();
-    doc.roundedRect(cardX, cardY, cardWidth, 70, 8).fill('#f8fafc');
+    doc.roundedRect(cardX, cardY, cardWidth, 80, 10).fill('#ffffff').stroke(COLORS.border);
     doc.restore();
 
-    doc.fill('#111827').fontSize(10).font('Helvetica-Bold').text(card.title, cardX + 10, cardY + 10, { width: cardWidth - 20 });
-    doc.fill('#111827').fontSize(14).font('Helvetica').text(card.value, cardX + 10, cardY + 30, { width: cardWidth - 20 });
+    doc.fill(card.color).fontSize(10).font('Helvetica-Bold').text(card.title, cardX + 12, cardY + 12, { width: cardWidth - 24 });
+    doc.fill(COLORS.text).fontSize(16).font('Helvetica-Bold').text(card.value, cardX + 12, cardY + 35, { width: cardWidth - 24 });
   });
 
-  doc.moveDown(6);
+  doc.moveDown(8);
 };
 
 const drawTable = (doc, columns, rows, startY) => {
   const columnWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right) / columns.length;
   let y = startY;
 
-  doc.fontSize(9).font('Helvetica-Bold');
+  doc.fontSize(9).font('Helvetica-Bold').fill(COLORS.text);
   columns.forEach((col, index) => {
-    doc.fill('#111827').text(col.label, doc.page.margins.left + index * columnWidth, y, { width: columnWidth, align: 'left' });
+    doc.text(col.label, doc.page.margins.left + index * columnWidth, y, { width: columnWidth, align: 'left' });
   });
   y += 18;
+  doc.strokeColor(COLORS.border).lineWidth(0.5).moveTo(doc.page.margins.left, y - 4).lineTo(doc.page.width - doc.page.margins.right, y - 4).stroke();
 
   rows.forEach((row, rowIndex) => {
     if (y > doc.page.height - doc.page.margins.bottom - 40) {
       doc.addPage();
       addHeader(doc, '', '', '');
       y = doc.y + 10;
-      doc.fontSize(9).font('Helvetica-Bold');
+      doc.fontSize(9).font('Helvetica-Bold').fill(COLORS.text);
       columns.forEach((col, index) => {
         doc.text(col.label, doc.page.margins.left + index * columnWidth, y, { width: columnWidth, align: 'left' });
       });
       y += 18;
+      doc.strokeColor(COLORS.border).lineWidth(0.5).moveTo(doc.page.margins.left, y - 4).lineTo(doc.page.width - doc.page.margins.right, y - 4).stroke();
     }
 
-    rows[rowIndex].backgroundColor = row.backgroundColor || null;
     if (row.backgroundColor) {
+      doc.save();
       doc.rect(doc.page.margins.left, y - 2, doc.page.width - doc.page.margins.left - doc.page.margins.right, 18)
-        .fill(row.backgroundColor)
-        .fillColor('#111827');
+        .fill(row.backgroundColor);
+      doc.restore();
+    } else if (rowIndex % 2 === 0) {
+      doc.save();
+      doc.rect(doc.page.margins.left, y - 2, doc.page.width - doc.page.margins.left - doc.page.margins.right, 18)
+        .fill('#f8fafc');
+      doc.restore();
     }
 
-    doc.fontSize(8).font('Helvetica');
+    doc.fontSize(8).font('Helvetica').fill(COLORS.text);
     columns.forEach((col, colIndex) => {
       const value = row[col.key] ?? '-';
-      doc.fill('#111827').text(value.toString(), doc.page.margins.left + colIndex * columnWidth, y, { width: columnWidth, align: 'left' });
+      doc.text(value.toString(), doc.page.margins.left + colIndex * columnWidth, y, { width: columnWidth, align: 'left' });
     });
     y += 18;
   });
@@ -133,13 +148,12 @@ const generateReportPdf = async ({
     doc.pipe(stream);
 
     addHeader(doc, reportNumber, monthLabel, generatedAt);
-    doc.moveDown(1);
+    addSectionTitle(doc, 'Executive Summary');
     addSummaryCards(doc, summary);
     doc.addPage();
 
     addHeader(doc, reportNumber, monthLabel, generatedAt);
-    doc.moveDown(1);
-    doc.fontSize(12).fill('#111827').font('Helvetica-Bold').text('Day Wise Summary', { underline: true });
+    addSectionTitle(doc, 'Day Wise Summary');
     doc.moveDown(0.4);
 
     const dayColumns = [
