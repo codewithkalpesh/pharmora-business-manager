@@ -360,6 +360,26 @@ const generateReport = async ({ month, year, userId, sendTelegram = true }) => {
     groupedTransactions[groupedTransactions.length - 1].transactions.push(tx);
   }
 
+  // Ensure every day in the month appears in groupedTransactions (even with no entries)
+  const groupedByDate = groupedTransactions.reduce((acc, g) => {
+    acc[g.date] = g;
+    return acc;
+  }, {});
+
+  const orderedGroups = [];
+  // daySummary contains every day of the month in order
+  for (const dayRow of await buildDaySummary(userId, start, end)) {
+    const dateKey = dayRow.date;
+    if (groupedByDate[dateKey]) {
+      orderedGroups.push(groupedByDate[dateKey]);
+    } else {
+      orderedGroups.push({ date: dateKey, transactions: [] });
+    }
+  }
+
+  // use the ordered groups for rendering
+  const finalGroupedTransactions = orderedGroups;
+
   const fileName = `${start.toLocaleString('en-IN', { month: 'long' })}-${year}-Report.pdf`;
   const outputPath = path.join(REPORT_DIRECTORY, fileName);
 
@@ -369,7 +389,7 @@ const generateReport = async ({ month, year, userId, sendTelegram = true }) => {
     generatedAt,
     summary: { ...summary, ...calcSummary(summary) },
     daySummary,
-    groupedTransactions,
+    groupedTransactions: finalGroupedTransactions,
     analysis: summaryAnalysis,
     charts,
     reportNumber,
