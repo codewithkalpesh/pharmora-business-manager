@@ -2,9 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../store/AuthContext';
 import { authApi } from '../../api/auth.api';
+import { reportApi } from '../../api/report.api';
 import { PageHeader } from '../../components/common/PageHeader';
 import {
-  User, Shield, Building, Check, AlertCircle, RefreshCw, Key, Share2, Send, Link, Radio
+  User, Shield, Building, Check, AlertCircle, RefreshCw, Key, Share2, Send, Link, Radio, Download, Calendar
 } from 'lucide-react';
 
 export function Settings() {
@@ -45,6 +46,10 @@ export function Settings() {
     phone: '',
     email: '',
   });
+  const [reportMonth, setReportMonth] = useState('');
+  const [reportYear, setReportYear] = useState('');
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportMessage, setReportMessage] = useState(null);
 
   useEffect(() => {
     // Load local business settings if any
@@ -137,6 +142,33 @@ export function Settings() {
 
     localStorage.setItem('pbm_business_settings', JSON.stringify(businessForm));
     setSuccess("Business settings updated successfully.");
+  };
+
+  const handleDownloadMonthlyReport = async () => {
+    setError(null);
+    setSuccess(null);
+    setReportMessage(null);
+
+    if (!reportMonth || !reportYear) {
+      setError('Please select both month and year before downloading the report.');
+      return;
+    }
+
+    setReportLoading(true);
+    try {
+      const response = await reportApi.generateMonthlyReport({
+        month: Number(reportMonth),
+        year: Number(reportYear),
+        sendTelegram: false,
+      });
+      const reportUrl = response.data.data.reportUrl;
+      window.open(reportUrl, '_blank');
+      setReportMessage('Monthly report generated successfully. It should open in a new tab.');
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to download monthly report.');
+    } finally {
+      setReportLoading(false);
+    }
   };
 
   return (
@@ -322,6 +354,78 @@ export function Settings() {
               </button>
             </div>
           </form>
+        )}
+
+        {activeTab === 'groupLink' && (
+          <div className="mt-10 rounded-2xl border border-slate-800 bg-slate-950/60 p-5">
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <div>
+                <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                  <Download size={16} className="text-emerald-400" />
+                  Download Monthly Report
+                </h3>
+                <p className="text-[11px] text-slate-450 mt-1">
+                  Generate and download the selected month's financial report as a PDF.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="input-group">
+                <label className="input-label">Month</label>
+                <select
+                  value={reportMonth}
+                  onChange={(e) => setReportMonth(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Select month</option>
+                  {[...Array(12)].map((_, index) => (
+                    <option key={index} value={index + 1}>
+                      {new Date(0, index).toLocaleString('en-IN', { month: 'long' })}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="input-group">
+                <label className="input-label">Year</label>
+                <select
+                  value={reportYear}
+                  onChange={(e) => setReportYear(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Select year</option>
+                  {[...Array(4)].map((_, index) => {
+                    const year = new Date().getFullYear() - index;
+                    return (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleDownloadMonthlyReport}
+                  disabled={reportLoading}
+                  className="btn btn-primary w-full"
+                >
+                  {reportLoading && <RefreshCw className="animate-spin h-4 w-4 mr-2" />}
+                  <Download size={14} className="mr-2" />
+                  Download Report
+                </button>
+              </div>
+            </div>
+
+            {reportMessage && (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-xs text-emerald-300">
+                {reportMessage}
+              </div>
+            )}
+          </div>
         )}
 
         {activeTab === 'security' && (
