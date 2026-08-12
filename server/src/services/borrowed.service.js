@@ -33,6 +33,7 @@ class BorrowedService {
     }
 
     const borrowedAmount = Number(data.borrowedAmount || 0);
+    const targetAmount = Number(data.targetAmount !== undefined && data.targetAmount !== null ? data.targetAmount : borrowedAmount);
 
     const payload = {
       personName: data.personName?.trim(),

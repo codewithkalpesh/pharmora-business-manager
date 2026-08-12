@@ -5,6 +5,8 @@ import {
   formFooterStyle,
 } from '../../components/common/FormField';
 import { bankApi } from '../../api/bank.api';
+import { formatCurrency } from '../../lib/utils';
+import { Clock } from 'lucide-react';
 
 export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData, prefillBorrower, existingBorrowers = [], loading }) {
   const [bankAccounts, setBankAccounts] = useState([]);
@@ -22,6 +24,11 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
     upiAmount: '',
     bankAccountId: '',
   });
+
+  const matchedBorrower = existingBorrowers.find(
+    (b) => (b.personName || '').trim().toLowerCase() === (formData.personName || '').trim().toLowerCase()
+  );
+  const previousRemaining = matchedBorrower ? Number(matchedBorrower.totalRemaining || 0) : 0;
 
   useEffect(() => {
     if (initialData) {
@@ -43,11 +50,15 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
         bankAccountId: initialData.bankAccountId || '',
       });
     } else if (prefillBorrower) {
+      const found = existingBorrowers.find(
+        (b) => (b.personName || '').trim().toLowerCase() === (prefillBorrower.personName || '').trim().toLowerCase()
+      );
+      const prevDue = found ? Number(found.totalRemaining || 0) : 0;
       setFormData({
         personName: prefillBorrower.personName || '',
         phone: prefillBorrower.phone || '',
         borrowedAmount: '',
-        targetAmount: '',
+        targetAmount: prevDue > 0 ? prevDue.toFixed(2) : '',
         borrowDate: new Date().toISOString().split('T')[0],
         targetDate: '',
         paymentMode: 'CASH',
@@ -84,8 +95,19 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
     const { name, value } = e.target;
     setFormData((prev) => {
       const next = { ...prev, [name]: value };
-      if (name === 'borrowedAmount' && (!prev.targetAmount || prev.targetAmount === prev.borrowedAmount)) {
-        next.targetAmount = value;
+      if (name === 'borrowedAmount') {
+        const valNum = parseFloat(value || 0);
+        const currentName = (next.personName || '').trim().toLowerCase();
+        const found = existingBorrowers.find(
+          (b) => (b.personName || '').trim().toLowerCase() === currentName
+        );
+        const prevDue = found ? Number(found.totalRemaining || 0) : 0;
+
+        if (prevDue > 0) {
+          next.targetAmount = valNum > 0 ? (valNum + prevDue).toFixed(2) : prevDue.toFixed(2);
+        } else if (!prev.targetAmount || prev.targetAmount === prev.borrowedAmount) {
+          next.targetAmount = value;
+        }
       }
       return next;
     });
@@ -176,10 +198,15 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
                 if (!selectedName) return;
                 const found = existingBorrowers.find(b => b.personName === selectedName);
                 if (found) {
+                  const prevDue = Number(found.totalRemaining || 0);
+                  const currentBorrowed = parseFloat(formData.borrowedAmount || 0);
                   setFormData(prev => ({
                     ...prev,
                     personName: found.personName,
                     phone: found.phone || prev.phone,
+                    targetAmount: currentBorrowed > 0
+                      ? (currentBorrowed + prevDue).toFixed(2)
+                      : (prevDue > 0 ? prevDue.toFixed(2) : prev.targetAmount),
                   }));
                 }
               }}
@@ -203,6 +230,64 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
                 </option>
               ))}
             </select>
+          </div>
+        )}
+
+        {/* Previous Outstanding Loan Balance Alert */}
+        {previousRemaining > 0 && !initialData && (
+          <div style={{
+            marginBottom: 14,
+            padding: '12px 14px',
+            background: 'rgba(245, 158, 11, 0.08)',
+            border: '1.5px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: 12,
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Clock size={14} /> Previous Outstanding Balance for {matchedBorrower?.personName}:
+              </span>
+              <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#dc2626' }}>
+                {formatCurrency(previousRemaining)}
+              </span>
+            </div>
+            <div style={{
+              fontSize: '0.75rem',
+              color: '#475569',
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: '1px solid rgba(245, 158, 11, 0.2)',
+              gap: 8,
+            }}>
+              <span>
+                Combined Payback = <strong>{formatCurrency(previousRemaining)}</strong> (Prev.) + <strong>{formatCurrency(parseFloat(formData.borrowedAmount || 0))}</strong> (New) = <strong style={{ color: '#059669' }}>{formatCurrency(previousRemaining + parseFloat(formData.borrowedAmount || 0))}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const newAmt = parseFloat(formData.borrowedAmount || 0);
+                  setFormData(prev => ({
+                    ...prev,
+                    targetAmount: (newAmt + previousRemaining).toFixed(2),
+                  }));
+                }}
+                style={{
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  padding: '3px 10px',
+                  borderRadius: 8,
+                  background: '#d97706',
+                  color: '#ffffff',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+              >
+                Auto-Set Payback
+              </button>
+            </div>
           </div>
         )}
 
@@ -328,6 +413,11 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
               onChange={handleChange}
               style={{ ...inputBase, fontWeight: 700, color: '#059669' }}
             />
+            {previousRemaining > 0 && !initialData && (
+              <span style={{ fontSize: '0.6875rem', color: '#d97706', fontWeight: 600, marginTop: 4, display: 'block' }}>
+                Includes prev. due ({formatCurrency(previousRemaining)}) + new loan ({formatCurrency(parseFloat(formData.borrowedAmount || 0))})
+              </span>
+            )}
           </FormField>
         </div>
 
