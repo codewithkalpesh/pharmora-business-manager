@@ -1,10 +1,10 @@
 // src/pages/borrowed/RepaymentHistoryModal.jsx
 import React from 'react';
 import Modal from '../../components/common/Modal';
-import { Trash2, ArrowDownLeft, ArrowUpRight, Clock } from 'lucide-react';
+import { Trash2, ArrowDownLeft, ArrowUpRight, Clock, PlusCircle } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
-export function RepaymentHistoryModal({ isOpen, onClose, item, onDeleteRepayment }) {
+export function RepaymentHistoryModal({ isOpen, onClose, item, onDeleteRepayment, onBorrowAgain }) {
   if (!item) return null;
 
   const repayments = item.repayments || [];
@@ -174,23 +174,49 @@ export function RepaymentHistoryModal({ isOpen, onClose, item, onDeleteRepayment
         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
           Status: <strong style={{ color: '#0f172a' }}>{item.displayStatus || item.status}</strong>
         </span>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            padding: '0 18px',
-            height: 36,
-            borderRadius: 10,
-            cursor: 'pointer',
-            background: '#f1f5f9',
-            border: '1px solid rgba(148,163,184,0.2)',
-            color: '#334155',
-            fontSize: '0.8125rem',
-            fontWeight: 700,
-          }}
-        >
-          Close
-        </button>
+        <div style={{ display: 'flex', items: 'center', gap: 8 }}>
+          {onBorrowAgain && (
+            <button
+              type="button"
+              onClick={() => {
+                if (onBorrowAgain) onBorrowAgain(item);
+              }}
+              style={{
+                padding: '0 14px',
+                height: 36,
+                borderRadius: 10,
+                cursor: 'pointer',
+                background: 'rgba(6, 182, 212, 0.1)',
+                border: '1px solid rgba(6, 182, 212, 0.3)',
+                color: '#0891b2',
+                fontSize: '0.8125rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+              }}
+            >
+              <PlusCircle size={14} /> Borrow Again
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: '0 18px',
+              height: 36,
+              borderRadius: 10,
+              cursor: 'pointer',
+              background: '#f1f5f9',
+              border: '1px solid rgba(148,163,184,0.2)',
+              color: '#334155',
+              fontSize: '0.8125rem',
+              fontWeight: 700,
+            }}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </Modal>
   );

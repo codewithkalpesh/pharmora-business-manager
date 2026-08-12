@@ -6,7 +6,7 @@ import {
 } from '../../components/common/FormField';
 import { bankApi } from '../../api/bank.api';
 
-export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData, loading }) {
+export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData, prefillBorrower, existingBorrowers = [], loading }) {
   const [bankAccounts, setBankAccounts] = useState([]);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState({
@@ -42,6 +42,20 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
         upiAmount: initialData.upiAmount || '',
         bankAccountId: initialData.bankAccountId || '',
       });
+    } else if (prefillBorrower) {
+      setFormData({
+        personName: prefillBorrower.personName || '',
+        phone: prefillBorrower.phone || '',
+        borrowedAmount: '',
+        targetAmount: '',
+        borrowDate: new Date().toISOString().split('T')[0],
+        targetDate: '',
+        paymentMode: 'CASH',
+        notes: '',
+        cashAmount: '',
+        upiAmount: '',
+        bankAccountId: '',
+      });
     } else {
       setFormData({
         personName: '',
@@ -58,7 +72,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
       });
     }
     setError('');
-  }, [initialData, isOpen]);
+  }, [initialData, prefillBorrower, isOpen]);
 
   useEffect(() => {
     bankApi.getAccounts().then((r) => {
@@ -111,11 +125,17 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
     onSubmit(payload);
   };
 
+  const modalTitle = initialData
+    ? 'Edit Borrowed Money Record'
+    : prefillBorrower?.personName
+    ? `Borrow Again from ${prefillBorrower.personName}`
+    : 'Record Borrowed Money';
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialData ? 'Edit Borrowed Money Record' : 'Record Borrowed Money'}
+      title={modalTitle}
       size="md"
     >
       <form onSubmit={handleSubmit}>
@@ -133,6 +153,59 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
             {error}
           </div>
         )}
+
+        {/* Quick select existing borrower */}
+        {existingBorrowers && existingBorrowers.length > 0 && !initialData && (
+          <div style={{
+            marginBottom: 14,
+            padding: '10px 12px',
+            background: 'rgba(6, 182, 212, 0.08)',
+            border: '1.5px solid rgba(6, 182, 212, 0.25)',
+            borderRadius: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 10,
+          }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0891b2' }}>
+              Select Existing Borrower / Lender:
+            </span>
+            <select
+              onChange={(e) => {
+                const selectedName = e.target.value;
+                if (!selectedName) return;
+                const found = existingBorrowers.find(b => b.personName === selectedName);
+                if (found) {
+                  setFormData(prev => ({
+                    ...prev,
+                    personName: found.personName,
+                    phone: found.phone || prev.phone,
+                  }));
+                }
+              }}
+              value={existingBorrowers.some(b => b.personName === formData.personName) ? formData.personName : ''}
+              style={{
+                ...selectBase,
+                padding: '4px 8px',
+                fontSize: '0.75rem',
+                height: '32px',
+                width: 'auto',
+                minWidth: '180px',
+                borderColor: 'rgba(6, 182, 212, 0.4)',
+                background: '#ffffff',
+                fontWeight: 600,
+              }}
+            >
+              <option value="">-- Choose Borrower --</option>
+              {existingBorrowers.map((b, idx) => (
+                <option key={idx} value={b.personName}>
+                  {b.personName} {b.phone ? `(${b.phone})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Person Name */}
         <div style={{ marginBottom: 12 }}>
           <FormField label="Lender / Person Name *">
@@ -313,7 +386,7 @@ export function BorrowedMoneyFormModal({ isOpen, onClose, onSubmit, initialData,
             disabled={loading}
             style={submitBtnStyle}
           >
-            {loading ? 'Saving...' : initialData ? 'Update Record' : 'Record Borrowed Money'}
+            {loading ? 'Saving...' : initialData ? 'Update Record' : prefillBorrower ? 'Record New Loan' : 'Record Borrowed Money'}
           </button>
         </div>
       </form>

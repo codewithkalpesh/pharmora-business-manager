@@ -8,7 +8,7 @@ import { RepaymentHistoryModal } from './RepaymentHistoryModal';
 import {
   HandCoins, Plus, Search, Filter, Calendar, Bell, History,
   DollarSign, CheckCircle2, AlertTriangle, Clock, Edit2, Trash2,
-  RefreshCw, ArrowUpRight, ArrowDownLeft, Send, Phone
+  RefreshCw, ArrowUpRight, ArrowDownLeft, Send, Phone, PlusCircle
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../../lib/utils';
 
@@ -34,6 +34,7 @@ export function BorrowedMoney() {
   // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedForEdit, setSelectedForEdit] = useState(null);
+  const [prefillBorrower, setPrefillBorrower] = useState(null);
 
   const [isRepayOpen, setIsRepayOpen] = useState(false);
   const [selectedForRepay, setSelectedForRepay] = useState(null);
@@ -42,6 +43,19 @@ export function BorrowedMoney() {
   const [selectedForHistory, setSelectedForHistory] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
+
+  const existingBorrowers = React.useMemo(() => {
+    const map = new Map();
+    items.forEach((item) => {
+      if (item.personName && !map.has(item.personName.trim().toLowerCase())) {
+        map.set(item.personName.trim().toLowerCase(), {
+          personName: item.personName,
+          phone: item.phone || '',
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [items]);
 
   const fetchBorrowedData = useCallback(async () => {
     setLoading(true);
@@ -70,6 +84,15 @@ export function BorrowedMoney() {
     fetchBorrowedData();
   }, [fetchBorrowedData]);
 
+  const handleBorrowAgain = (item) => {
+    setSelectedForEdit(null);
+    setPrefillBorrower({
+      personName: item.personName,
+      phone: item.phone || '',
+    });
+    setIsFormOpen(true);
+  };
+
   // Handlers
   const handleCreateOrUpdate = async (formData) => {
     setSubmitting(true);
@@ -83,6 +106,7 @@ export function BorrowedMoney() {
       }
       setIsFormOpen(false);
       setSelectedForEdit(null);
+      setPrefillBorrower(null);
       await fetchBorrowedData();
 
       // Automatically open the transaction & repayment history window for the newly added record
@@ -388,6 +412,14 @@ export function BorrowedMoney() {
                         )}
 
                         <button
+                          onClick={() => handleBorrowAgain(item)}
+                          className="btn btn-ghost px-2 py-1 text-[11px] font-bold text-cyan-400 hover:bg-cyan-500/10 border border-cyan-500/20 rounded-lg flex items-center gap-1"
+                          title={`Borrow again from ${item.personName}`}
+                        >
+                          <PlusCircle size={12} /> Borrow Again
+                        </button>
+
+                        <button
                           onClick={() => {
                             setSelectedForHistory(item);
                             setIsHistoryOpen(true);
@@ -432,9 +464,12 @@ export function BorrowedMoney() {
         onClose={() => {
           setIsFormOpen(false);
           setSelectedForEdit(null);
+          setPrefillBorrower(null);
         }}
         onSubmit={handleCreateOrUpdate}
         initialData={selectedForEdit}
+        prefillBorrower={prefillBorrower}
+        existingBorrowers={existingBorrowers}
         loading={submitting}
       />
 
@@ -460,6 +495,11 @@ export function BorrowedMoney() {
         }}
         item={selectedForHistory}
         onDeleteRepayment={handleDeleteRepayment}
+        onBorrowAgain={(item) => {
+          setIsHistoryOpen(false);
+          setSelectedForHistory(null);
+          handleBorrowAgain(item);
+        }}
       />
     </div>
   );
