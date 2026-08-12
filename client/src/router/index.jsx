@@ -24,6 +24,7 @@ import { CashHistory } from '../pages/history/CashHistory';
 import { BankHistory } from '../pages/history/BankHistory';
 import { RevenueHistory } from '../pages/history/RevenueHistory';
 import LandingPage from '../pages/home/LandingPage';
+import { NotFound } from '../pages/NotFound';
 
 export const router = createBrowserRouter([
   {
