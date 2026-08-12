@@ -23,9 +23,13 @@ import { ExpenseHistory } from '../pages/history/ExpenseHistory';
 import { CashHistory } from '../pages/history/CashHistory';
 import { BankHistory } from '../pages/history/BankHistory';
 import { RevenueHistory } from '../pages/history/RevenueHistory';
-import { NotFound } from '../pages/NotFound';
+import LandingPage from '../pages/home/LandingPage';
 
 export const router = createBrowserRouter([
+  {
+    path: '/',
+    element: <LandingPage />,
+  },
   {
     path: '/login',
     element: (
@@ -50,7 +54,6 @@ export const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Dashboard /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'dashboard/expenses/history', element: <ExpenseHistory /> },
       { path: 'dashboard/expenses/today', element: <ExpenseHistory /> },
