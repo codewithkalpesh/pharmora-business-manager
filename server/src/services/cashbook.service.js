@@ -138,10 +138,21 @@ class CashBookService {
                            payments.filter(p => p.paymentMode === 'CASH').reduce((sum, p) => sum + Number(p.amount), 0) +
                            repayments.filter(r => r.paymentMode === 'CASH').reduce((sum, r) => sum + Number(r.amount), 0);
 
+      const bankTxns = await prisma.bankTransaction.findMany({
+        where: {
+          createdById: userId,
+          type: 'DEPOSIT',
+          description: { contains: '[CashToBank]' },
+          date: { gte: startOfDay, lte: endOfDay }
+        }
+      });
+      const bankDeposits = bankTxns.reduce((sum, t) => sum + Number(t.amount), 0);
+
       return {
         isNew: true,
         suggestedOpeningCash: previousEntry ? previousEntry.closingCash : 0,
         suggestedTotalExpenses: cashExpenses,
+        suggestedBankDeposit: bankDeposits,
       };
     }
     

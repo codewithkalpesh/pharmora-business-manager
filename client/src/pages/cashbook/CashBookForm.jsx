@@ -99,18 +99,17 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
   const watched = watch();
   const openingCash   = Number(watched.openingCash) || 0;
   const cashSales     = Number(watched.cashSales) || 0;
+  const upiReceipts   = Number(watched.upiReceipts) || 0;
   const closingCash   = Number(watched.closingCash) || 0;
   const totalExpenses = Number(watched.totalExpenses) || 0;
   const bankDeposit   = Number(watched.bankDeposit) || 0;
-  const expectedClosing = openingCash + cashSales - totalExpenses - bankDeposit;
-  const difference    = closingCash - expectedClosing;
 
+  // Automatically calculate Cash Sales:
+  // Cash Sales = Cash in Drawer (closingCash) + Expenses + Bank Deposit - Opening Cash
   useEffect(() => {
-    if (!isEdit || dirtyFields.cashSales || dirtyFields.openingCash) {
-      const calculatedClosing = Math.max(0, openingCash + cashSales - totalExpenses - bankDeposit);
-      setValue('closingCash', calculatedClosing);
-    }
-  }, [cashSales, totalExpenses, openingCash, bankDeposit, isEdit, dirtyFields.cashSales, dirtyFields.openingCash, setValue]);
+    const calculatedSales = Math.max(0, closingCash + totalExpenses + bankDeposit - openingCash);
+    setValue('cashSales', calculatedSales);
+  }, [closingCash, totalExpenses, bankDeposit, openingCash, setValue]);
 
   useEffect(() => {
     if (!isEdit && watched.date) {
@@ -119,8 +118,14 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         .then(({ data }) => {
           if (data.success) {
             if (data.data.isNew) {
-              setValue('openingCash', Number(data.data.suggestedOpeningCash || 0));
-              setValue('totalExpenses', Number(data.data.suggestedTotalExpenses || 0));
+              const opening = Number(data.data.suggestedOpeningCash || 0);
+              const exp = Number(data.data.suggestedTotalExpenses || 0);
+              const dep = Number(data.data.suggestedBankDeposit || 0);
+              setValue('openingCash', opening);
+              setValue('totalExpenses', exp);
+              setValue('bankDeposit', dep);
+              const drawer = Number(watched.closingCash) || 0;
+              setValue('cashSales', Math.max(0, drawer + exp + dep - opening));
             } else {
               setError(`An entry already exists for ${watched.date}. Close this and edit the existing entry.`);
             }
@@ -131,17 +136,23 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
     }
   }, [watched.date, isEdit, setValue]);
 
+  const expectedClosing = openingCash + cashSales - totalExpenses - bankDeposit;
+  const difference    = closingCash - expectedClosing;
+  const totalDailyRevenue = cashSales + upiReceipts;
+
   const onSubmit = async (values) => {
     setLoading(true);
     setError('');
     try {
+      const calculatedCashSales = Math.max(0, (Number(values.closingCash) || 0) + (Number(values.totalExpenses) || 0) + (Number(values.bankDeposit) || 0) - (Number(values.openingCash) || 0));
       const payload = {
         ...values,
+        cashSales: calculatedCashSales,
         cardReceipts: 0,
         otherIncome: 0,
         totalExpenses: values.totalExpenses || 0,
         bankDeposit: values.bankDeposit || 0,
-        cashDifference: difference,
+        cashDifference: (Number(values.closingCash) || 0) - ((Number(values.openingCash) || 0) + calculatedCashSales - (Number(values.totalExpenses) || 0) - (Number(values.bankDeposit) || 0)),
       };
       if (isEdit) {
         await cashBookApi.update(initialData.id, payload);
@@ -184,7 +195,7 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
       </p>
 
       {/* ── Row 1: Date + Opening ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <Field label="Date" icon={DollarSign} iconColor="#64748b" error={errors.date?.message}>
           <input
             type="date"
@@ -193,30 +204,69 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
             {...regWithFocus('date', register('date'))}
           />
         </Field>
-        <Field label={fetchingOpening ? 'Opening Cash (loading…)' : 'Opening Cash'} icon={Wallet} iconColor="#10b981" error={errors.openingCash?.message}>
+        <Field label={fetchingOpening ? 'Opening Cash (loading…)' : 'Opening Cash (Auto)'} icon={Wallet} iconColor="#10b981" error={errors.openingCash?.message}>
           <input type="number" step="0.01" {...regWithFocus('openingCash', register('openingCash'))} />
         </Field>
       </div>
 
-      {/* ── Section: Receipts & Outflows ── */}
-      <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10, marginTop: 4 }}>
-        Receipts & Outflows
-      </p>
+      {/* ── Section: Daily Cash Counter & Collections ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, marginTop: 4 }}>
+        <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
+          Daily Cash Counter & Receipts
+        </p>
+        <span style={{ fontSize: '0.6875rem', color: '#64748b', fontWeight: 500 }}>
+          Enter Drawer Cash & UPI
+        </span>
+      </div>
       
-      {/* Row 1: Cash Sales & UPI Receipts */}
+      {/* Row 1: Cash in Drawer (Primary Input) & UPI Receipts */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-        <Field label="Cash Sales" icon={TrendingUp} iconColor="#10b981" error={errors.cashSales?.message}>
-          <input type="number" step="0.01" {...regWithFocus('cashSales', register('cashSales'))} />
+        <Field label="Cash in Drawer (Physical Count)" icon={PiggyBank} iconColor="#f59e0b" error={errors.closingCash?.message}>
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Enter physical cash in drawer"
+            style={{
+              ...inputStyle(!!errors.closingCash),
+              background: '#fffbeb',
+              borderColor: '#fde68a',
+              fontWeight: 700,
+              fontSize: '1rem',
+              color: '#92400e',
+              ...(focusField === 'closingCash' ? { borderColor: '#f59e0b', boxShadow: '0 0 0 3px rgba(245,158,11,0.15)' } : {})
+            }}
+            {...register('closingCash')}
+            onFocus={() => setFocusField('closingCash')}
+            onBlur={() => setFocusField(null)}
+          />
         </Field>
         <Field label="UPI Receipts" icon={CreditCard} iconColor="#3b82f6" error={errors.upiReceipts?.message}>
-          <input type="number" step="0.01" {...regWithFocus('upiReceipts', register('upiReceipts'))} />
+          <input
+            type="number"
+            step="0.01"
+            placeholder="Enter UPI / Online sales"
+            {...regWithFocus('upiReceipts', register('upiReceipts'))}
+          />
         </Field>
       </div>
 
-      {/* Row 2: Cash in Drawer & Total Expenses (Auto) & Bank Deposit */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
-        <Field label="Cash in Drawer" icon={PiggyBank} iconColor="#f59e0b" error={errors.closingCash?.message}>
-          <input type="number" step="0.01" {...regWithFocus('closingCash', register('closingCash'))} />
+      {/* Row 2: Cash Sales (Auto-Calculated) & Expenses (Auto) & Bank Deposit */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <Field label="Cash Sales (Auto)" icon={TrendingUp} iconColor="#10b981" error={errors.cashSales?.message}>
+          <input
+            type="number"
+            step="0.01"
+            readOnly
+            style={{
+              ...inputStyle(false),
+              color: '#065f46',
+              background: '#ecfdf5',
+              border: '1.5px solid #a7f3d0',
+              fontWeight: 700,
+              cursor: 'default',
+            }}
+            {...register('cashSales')}
+          />
         </Field>
         <Field label="Expenses (Auto)" icon={TrendingDown} iconColor="#ef4444" error={errors.totalExpenses?.message}>
           <input
@@ -238,32 +288,49 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         </Field>
       </div>
 
+      {/* Formula helper text */}
+      <div style={{
+        fontSize: '0.6875rem',
+        color: '#64748b',
+        background: '#f8fafc',
+        padding: '6px 12px',
+        borderRadius: 8,
+        marginBottom: 14,
+        border: '1px solid rgba(148,163,184,0.15)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6
+      }}>
+        <span style={{ fontWeight: 600, color: '#10b981' }}>Formula:</span>
+        Cash Sales = Drawer Cash ({closingCash}) + Expenses ({totalExpenses}) + Bank Deposit ({bankDeposit}) - Opening ({openingCash}) = <strong>₹{cashSales.toFixed(2)}</strong>
+      </div>
+
       {/* ── Cash Reconciliation Summary ── */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
         background: '#f8fafc', borderRadius: 12, padding: '14px 16px',
         border: '1.5px solid rgba(148,163,184,0.14)', marginBottom: 14,
       }}>
-        {/* Expected */}
+        {/* Calculated Cash Sales */}
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-            Expected Closing Cash
+            Calculated Cash Sales
           </div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em' }}>
-            ₹{expectedClosing.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#059669', letterSpacing: '-0.02em' }}>
+            ₹{cashSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Opening + Sales - Expenses - Deposit</div>
+          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Drawer + Expenses + Deposit - Opening</div>
         </div>
 
-        {/* Actual Drawer Cash */}
+        {/* Total Day Revenue */}
         <div>
           <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-            Actual Cash in Drawer
+            Total Daily Revenue (Cash + UPI)
           </div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#10b981', letterSpacing: '-0.02em' }}>
-            ₹{closingCash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#2563eb', letterSpacing: '-0.02em' }}>
+            ₹{totalDailyRevenue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>Entered by you</div>
+          <div style={{ fontSize: '0.6875rem', color: '#94a3b8', marginTop: 2 }}>₹{cashSales.toFixed(2)} Cash + ₹{upiReceipts.toFixed(2)} UPI</div>
         </div>
       </div>
 
@@ -276,7 +343,7 @@ export default function CashBookForm({ initialData, onSuccess, onClose }) {
         border: `1.5px solid ${diffGreen ? 'rgba(16,185,129,0.2)' : diffPlus ? 'rgba(59,130,246,0.2)' : 'rgba(239,68,68,0.2)'}`,
       }}>
         <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#475569' }}>
-          {diffGreen ? '✅ Balanced' : diffPlus ? '📈 Overage' : '⚠️ Shortage'}
+          {diffGreen ? '✅ Balanced Drawer' : diffPlus ? '📈 Overage' : '⚠️ Shortage'}
         </div>
         <div style={{
           fontSize: '0.9375rem', fontWeight: 800,
